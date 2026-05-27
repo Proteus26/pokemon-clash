@@ -5,38 +5,39 @@ import (
 	"time"
 )
 
-func initBattle(id string, p1, p2 *player) *battle {
-	return &battle{
-		id: id,
-		p1: p1,
-		p2: p2,
-		p1chan: make(chan action),
-		p2chan: make(chan action),
-		broadcast: make(chan string),
+func InitBattle(id string, p1, p2 *Player) *Battle {
+	return &Battle{
+		Id: id,
+		P1: p1,
+		P2: p2,
+		P1chan: make(chan Action),
+		P2chan: make(chan Action),
+		Broadcast: make(chan string),
 	}
 }
 
-func (b *battle) start() {
-	b.broadcast <- fmt.Sprintf("Battle %s initialized, waiting for inputs", b.id)
+func (b *Battle) Start() {
+	b.Broadcast <- fmt.Sprintf("Battle %s initialized, waiting for inputs", b.Id)
 
 	turnTimer := time.NewTicker(30*time.Second)
 	defer turnTimer.Stop()
 
-	var act1, act2 *action
+	var act1, act2 *Action
 	
 	for {
 		select {
-		case act := <-b.p1chan:
+		case act := <-b.P1chan:
 			act1 = &act
-		case act := <-b.p2chan:
+		case act := <-b.P2chan:
 			act2 = &act
 		case <- turnTimer.C:
-			b.broadcast <- "Timer expired"
+			b.Broadcast <- "Timer expired"
 			//todo: add default action
 		}
 
 		if act1 != nil && act2 != nil {
 			//todo: make calculation mechanic
+			b.moveOrder(*act1, *act2)
 
 			act1 = nil
 			act2 = nil

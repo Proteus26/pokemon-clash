@@ -5,16 +5,16 @@ import (
 	"math/rand"
 )
 
-func (b *battle) moveOrder(act1, act2 action) {
+func (b *Battle) moveOrder(act1, act2 Action) {
 	p1first := true
 
-	if act1.act == "switch" && act2.act == "move" {
+	if act1.Act == "switch" && act2.Act == "move" {
 		p1first = true
-	} else if act2.act == "switch" && act1.act == "move" {
+	} else if act2.Act == "switch" && act1.Act == "move" {
 		p1first = false
 	} else {
-		spd1 := b.p1.active.spd
-		spd2 := b.p2.active.spd
+		spd1 := b.P1.Active.Spd
+		spd2 := b.P2.Active.Spd
 
 		if spd1 > spd2 {
 			p1first = true
@@ -26,40 +26,40 @@ func (b *battle) moveOrder(act1, act2 action) {
 	} 
 
 	if p1first {
-		b.execAction(b.p1, b.p2, act1)
-		if b.p2.active.hp > 0 {
-			b.execAction(b.p2, b.p1, act2)
+		b.execAction(b.P1, b.P2, act1)
+		if b.P2.Active.Hp > 0 {
+			b.execAction(b.P2, b.P1, act2)
 		}
 	} else {
-		b.execAction(b.p2, b.p1, act1)
-		if b.p1.active.hp > 0 {
-			b.execAction(b.p1, b.p2, act2)
+		b.execAction(b.P2, b.P1, act2)
+		if b.P1.Active.Hp > 0 {
+			b.execAction(b.P1, b.P2, act1)
 		}
 
 	}
 }
 
-func (b *battle) execAction(attacker, defender *player, act action) {
-	if act.act == "switch" {
-		b.broadcast <- fmt.Sprintf(`{"event": "switch", "player": "%s", "pokemon": "%s"}`, attacker.id, act.act)
-	} else if act.act == "move" {
-		damage := calcDamage(attacker.active, defender.active, act.value)
+func (b *Battle) execAction(attacker, defender *Player, act Action) {
+	if act.Act == "switch" {
+		b.Broadcast <- fmt.Sprintf(`{"event": "switch", "player": "%s", "pokemon": "%s"}`, attacker.Id, act.Act)
+	} else if act.Act == "move" {
+		damage := calcDamage(attacker.Active, defender.Active, act.Value)
 
-		defender.active.hp -= damage
-		if defender.active.hp < 0 {
-			defender.active.hp = 0
+		defender.Active.Hp -= damage
+		if defender.Active.Hp < 0 {
+			defender.Active.Hp = 0
 		}
 
-		b.broadcast <- fmt.Sprintf(`{"event": "move", "player": "%s", "move": "%s"}`, attacker.id, act.value)
-		b.broadcast <- fmt.Sprintf(`{"event": "damage", "target": "%s", "amount": %d, "remaining_hp": %d}`, defender.id, damage, defender.active.hp)
+		b.Broadcast <- fmt.Sprintf(`{"event": "move", "player": "%s", "pokemon": "%s", "move": "%s"}`, attacker.Id, attacker.Active.Mon, act.Value)
+		b.Broadcast <- fmt.Sprintf(`{"event": "damage", "target": "%s", "amount": %d, "remaining_hp": %d}`, defender.Id, damage, defender.Active.Hp)
 
-		if defender.active.hp == 0 {
-			b.broadcast <- fmt.Sprintf(`{"event": "faint", "target": "%s"}`, defender.id)
+		if defender.Active.Hp == 0 {
+			b.Broadcast <- fmt.Sprintf(`{"event": "faint", "target": "%s"}`, defender.Id)
 		}
-	} //todo: add other action types maybe and also change to switch then because lsp is saying so
+	} //todo: add other Action types maybe and also change to switch then because lsp is saying so
 }
 
-func calcDamage(attacker, defender *pokemon, move string) int {
+func calcDamage(attacker, defender *Pokemon, move string) int {
 
 	//todo: implement actual damage calculation after you setup fetching moves and such insteaad of this flat 20 for testing
 
