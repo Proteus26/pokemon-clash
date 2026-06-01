@@ -1,0 +1,16 @@
+{
+  "shadowball": {
+    "num": 247,
+    "name": "Shadow Ball",
+    "basePower": 80,
+    "category": "Special",
+    "type": "Ghost"
+  },
+  "tackle": {
+    "num": 33,
+    "name": "Tackle",
+    "basePower": 40,
+    "category": "Physical",
+    "type": "Normal"
+  }
+}

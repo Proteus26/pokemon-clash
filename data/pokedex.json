@@ -1,0 +1,14 @@
+{
+  "gengar": {
+    "num": 94,
+    "name": "Gengar",
+    "types": ["Ghost", "Poison"],
+    "baseStats": {"hp": 60, "atk": 65, "def": 60, "spa": 130, "spd": 75, "spe": 110}
+  },
+  "missingno": {
+    "num": 0,
+    "name": "Missingno",
+    "types": ["Bird", "Normal"],
+    "baseStats": {"hp": 33, "atk": 136, "def": 0, "spa": 6, "spd": 6, "spe": 29}
+  }
+}

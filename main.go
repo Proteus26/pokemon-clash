@@ -2,11 +2,18 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"log"
 	"pokemon-clash/engine"
+	"pokemon-clash/loader"
+	"time"
 )
 
 func main () {
+	err := loader.Loadall()
+	if err != nil {
+		log.Fatalf("server failed to start: %v\n", err)
+	}
+
 	p1active := &engine.Pokemon{
 		Id: "p1a",
 		Mon: "Gengar",
