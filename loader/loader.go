@@ -19,13 +19,13 @@ type Pokemondata struct {
 	Id int `json:"num"`
 	Name string `json:"name"`
 	Types []string `json:"types"`
-	Basestats Basestats `json:"basestats"`
+	Basestats Basestats `json:"baseStats"`
 }
 
 type Movedata struct {
 	Id int `json:"num"`
 	Name string `json:"string"`
-	Bp int `json:"bp"`
+	Bp int `json:"basePower"`
 	Category string `json:"category"`
 	Type string `json:"type"`
 }

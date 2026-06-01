@@ -14,24 +14,18 @@ func main () {
 		log.Fatalf("server failed to start: %v\n", err)
 	}
 
-	p1active := &engine.Pokemon{
-		Id: "p1a",
-		Mon: "Gengar",
-		Hp: 100,
-		Maxhp: 100,
-		Spd: 100,
+	p1active, err := engine.Injectpokemon("p1a", "gengar", 100)
+	if err != nil {
+		log.Fatalf("failed to inject p1 active %v\n", err)
 	}
 	p1 := &engine.Player{
 		Id: "playerone",
 		Active: p1active,
 	}
 	
-	p2active := &engine.Pokemon{
-		Id: "p2a",
-		Mon: "Missingno",
-		Hp: 100,
-		Maxhp: 100,
-		Spd: 100,
+	p2active, err := engine.Injectpokemon("p2a", "missingno", 100)
+	if err != nil {
+		log.Fatalf("failed to inject p2 active %v\n", err)
 	}
 	p2 := &engine.Player{
 		Id: "playertwo",
@@ -53,7 +47,7 @@ func main () {
 	battle.P1chan <- engine.Action{
 		Pid: "playerone",
 		Act: "move",
-		Value: "Shadow Ball",
+		Value: "shadowball",
 	}
 
 	time.Sleep(500*time.Millisecond)
@@ -61,7 +55,7 @@ func main () {
 	battle.P2chan <- engine.Action{
 		Pid: "playertwo",
 		Act: "move",
-		Value: "Tackle",
+		Value: "tackle",
 	}
 
 	time.Sleep(1*time.Second)

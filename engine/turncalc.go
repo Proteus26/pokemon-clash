@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math/rand"
+	"pokemon-clash/loader"
 )
 
 func (b *Battle) moveOrder(act1, act2 Action) {
@@ -59,9 +60,14 @@ func (b *Battle) execAction(attacker, defender *Player, act Action) {
 	} //todo: add other Action types maybe and also change to switch then because lsp is saying so
 }
 
-func calcDamage(attacker, defender *Pokemon, move string) int {
+func calcDamage(attacker, defender *Pokemon, moveid string) int {
+	movedata, exists := loader.GetMove(moveid)
+	if !exists {
+		fmt.Printf("move '%s' not found\n", moveid)
+		return 10
+	}
 
-	//todo: implement actual damage calculation after you setup fetching moves and such insteaad of this flat 20 for testing
-
-	return 20
+	//todo: better damage calc with actual stat considerations
+	damage := movedata.Bp/2
+	return damage
 }
