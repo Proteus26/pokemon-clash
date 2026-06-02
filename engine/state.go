@@ -3,9 +3,15 @@ package engine
 type Pokemon struct {
 	Id string
 	Mon string
-	Maxhp int 
+	Level int
+	Types []string
+	Maxhp int
 	Hp int 
+	Atk int
+	Def int
+	Spa int
 	Spd int
+	Spe int
 	//todo: add more stuff like abilities statuses moves and shit
 }
 

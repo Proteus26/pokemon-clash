@@ -14,12 +14,12 @@ func (b *Battle) moveOrder(act1, act2 Action) {
 	} else if act2.Act == "switch" && act1.Act == "move" {
 		p1first = false
 	} else {
-		spd1 := b.P1.Active.Spd
-		spd2 := b.P2.Active.Spd
+		spe1 := b.P1.Active.Spe
+		spe2 := b.P2.Active.Spe
 
-		if spd1 > spd2 {
+		if spe1 > spe2 {
 			p1first = true
-		} else if spd2 > spd1 {
+		} else if spe2 > spe1 {
 			p1first = false
 		} else {
 			p1first = rand.Intn(2) == 0
@@ -67,7 +67,44 @@ func calcDamage(attacker, defender *Pokemon, moveid string) int {
 		return 10
 	}
 
-	//todo: better damage calc with actual stat considerations
-	damage := movedata.Bp/2
-	return damage
+	if movedata.Category == "Status" {
+		return 0
+	}
+	
+	var a, d float64
+	if movedata.Category == "Physical" {
+		a = float64(attacker.Atk)
+		d = float64(defender.Def)
+	} else if movedata.Category == "Special" {
+		a = float64(attacker.Spa)
+		d = float64(defender.Spd)
+	}
+
+	level := float64(attacker.Level)
+	power := float64(movedata.Bp)
+
+	stab := 1.0
+	for _, t := range attacker.Types {
+		if t == movedata.Type {
+			stab = 1.5
+			break
+		}
+	}
+
+	basedmg := ((((2.0*level/5.0) + 2.0)*power*(a/d))/50.0) + 2.0
+	mult := geteff(movedata.Type, defender.Types)
+	rng := 0.85 + (rand.Float64() * 0.15)
+	mod := stab * mult * rng
+
+	finaldmg := int(basedmg*mod)
+
+	if mult == 0 {
+		return 0
+	}
+	if finaldmg < 1 {
+		finaldmg = 1
+	}
+
+	return finaldmg
+	//todo: some lsp optimizations to the code by usiing swtich statements and slices ig
 }
