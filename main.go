@@ -3,15 +3,25 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
+	"net/http"
 	"pokemon-clash/engine"
 	"pokemon-clash/loader"
-	"time"
+	"pokemon-clash/network"
 )
 
 func main () {
 	err := loader.Loadall()
 	if err != nil {
 		log.Fatalf("server failed to start: %v\n", err)
+	}
+
+	http.HandleFunc("/ws", network.Servesock)
+	
+	fmt.Println("")
+	err = http.ListenAndServe(":8080", nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
 	}
 
 	p1active, err := engine.Injectpokemon("p1a", "gengar", 100)

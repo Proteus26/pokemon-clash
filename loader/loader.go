@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"encoding/json"
+	"strings"
 )
 
 type Basestats struct {
@@ -20,6 +21,7 @@ type Pokemondata struct {
 	Name string `json:"name"`
 	Types []string `json:"types"`
 	Basestats Basestats `json:"baseStats"`
+	Abilities map[string]string `json:"abilities"`
 }
 
 type Movedata struct {
@@ -28,6 +30,7 @@ type Movedata struct {
 	Bp int `json:"basePower"`
 	Category string `json:"category"`
 	Type string `json:"type"`
+	Prio int `json:"priority"`
 }
 
 var Pokedex map[string]Pokemondata
@@ -58,12 +61,26 @@ func Loadall() error {
 	return nil
 }
 
+func Toid(s string) string {
+	s = strings.ToLower(s)
+	var sb strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			sb.WriteByte(c)
+		}
+	}
+	return sb.String()
+}
+
 func GetMove(id string) (Movedata, bool) {
-	move, exists := Moves[id]
+	nid := Toid(id)
+	move, exists := Moves[nid]
 	return move, exists
 }
 
 func GetPokemon(id string) (Pokemondata, bool) {
-	pokemon, exists := Pokedex[id]
+	nid := Toid(id)
+	pokemon, exists := Pokedex[nid]
 	return pokemon, exists
 }
