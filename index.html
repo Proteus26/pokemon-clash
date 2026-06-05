@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pokemon Clash Engine Test</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #fff; padding: 20px; }
+        #log { background: #000; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px;}
+        button { padding: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>WebSocket Engine Test</h2>
+    <div id="log"></div>
+    <button onclick="sendMove('shadowball')">Use Shadow Ball</button>
+    <button onclick="sendMove('tackle')">Use Tackle</button>
+
+    <script>
+        const logDiv = document.getElementById("log");
+        
+        const ws = new WebSocket("ws://localhost:8080/ws");
+
+        ws.onopen = () => {
+            logDiv.innerHTML += "<span style='color: lime;'>[System] Connected to Engine!</span><br>";
+        };
+
+        ws.onmessage = (event) => {
+            logDiv.innerHTML += `<span style='color: cyan;'>[Server Echo]: ${event.data}</span><br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        function sendMove(moveId) {
+            const payload = JSON.stringify({ act: "move", value: moveId });
+            logDiv.innerHTML += `<span style='color: yellow;'>[Browser]: Sending ${payload}</span><br>`;
+            ws.send(payload);
+        }
+    </script>
+</body>
+</html>

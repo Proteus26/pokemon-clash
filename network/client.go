@@ -33,6 +33,7 @@ func Servesock(w http.ResponseWriter, r *http.Request) {
 	log.Println("Player connected")
 
 	go client.readpump()
+	go client.writepump()
 } 
 
 func (c *Client) readpump(){
@@ -44,10 +45,31 @@ func (c *Client) readpump(){
 		_, msg, err :=  c.Conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Printf("error: %v\n", err)
 			}
 			break
 		}
-		log.Printf("Received from browser: %s", msg)
+		log.Printf("Received from browser: %s\n", msg)
+		c.Send <- msg
+	}
+}
+
+func (c *Client) writepump() {
+	defer func() {
+		c.Conn.Close()
+	}()
+
+	for {
+		msg, ok := <-c.Send
+		if !ok {
+			c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+			return
+		}
+
+		err := c.Conn.WriteMessage(websocket.TextMessage, msg)
+		if err != nil {
+			log.Printf("error: %v\n", err)
+			return
+		}
 	}
 }
