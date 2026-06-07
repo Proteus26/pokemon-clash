@@ -17,9 +17,10 @@ var upgrader = websocket.Upgrader {
 type Client struct {
 	Conn *websocket.Conn
 	Send chan []byte
+	hub *Hub
 }
 
-func Servesock(w http.ResponseWriter, r *http.Request) {
+func Servesock(w http.ResponseWriter, r *http.Request, hub *Hub) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade connection: ", err)
@@ -29,7 +30,9 @@ func Servesock(w http.ResponseWriter, r *http.Request) {
 	client := &Client{
 		Conn: conn,
 		Send: make(chan []byte, 256),
+		hub: hub,
 	}
+	client.hub.register <- client
 	log.Println("Player connected")
 
 	go client.readpump()
@@ -38,6 +41,7 @@ func Servesock(w http.ResponseWriter, r *http.Request) {
 
 func (c *Client) readpump(){
 	defer func() {
+		c.hub.unregister <- c
 		c.Conn.Close()
 	}()
 

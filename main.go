@@ -15,8 +15,13 @@ func main () {
 	if err != nil {
 		log.Fatalf("server failed to start: %v\n", err)
 	}
+	
+	hub := network.Newhub()
+	go hub.Run()
 
-	http.HandleFunc("/ws", network.Servesock)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		network.Servesock(w, r, hub)
+	})
 	
 	fmt.Println("")
 	err = http.ListenAndServe(":8080", nil)
