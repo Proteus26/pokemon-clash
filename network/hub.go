@@ -8,6 +8,7 @@ type Hub struct {
 	clients map[*Client] bool
 	register chan *Client
 	unregister chan *Client 
+	ready chan *Client
 	waiting *Client
 }
 
@@ -16,6 +17,7 @@ func Newhub() *Hub {
 		register: make(chan *Client),
 		unregister: make(chan *Client),
 		clients: make(map[*Client]bool),
+		ready: make(chan *Client),
 	}
 }
 
@@ -25,6 +27,9 @@ func (h *Hub) Run() {
 		case client := <- h.register:
 			h.clients[client] = true
 			fmt.Println("[hub] New player registered.")
+
+		case client := <-h.ready:
+			fmt.Println("[hub] Queueing player")
 			h.matchmake(client)
 
 		case client := <- h.unregister:

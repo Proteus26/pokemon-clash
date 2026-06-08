@@ -22,9 +22,10 @@ type Player struct {
 }
 
 type Action struct {
-	Pid string
-	Act string
-	Value string
+	Pid string `json:"-"`
+	Act string `json:"act"`
+	Value string `json:"value,omitempty"`
+	Team []string `json:"team,omitempty"`
 }
 
 type Battle struct {

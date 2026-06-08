@@ -14,6 +14,7 @@
     <div id="log"></div>
     <button onclick="sendMove('shadowball')">Use Shadow Ball</button>
     <button onclick="sendMove('tackle')">Use Tackle</button>
+	<button onclick="sendJoin()">Join Matchmaking</button>
 
     <script>
         const logDiv = document.getElementById("log");
@@ -34,6 +35,14 @@
             logDiv.innerHTML += `<span style='color: yellow;'>[Browser]: Sending ${payload}</span><br>`;
             ws.send(payload);
         }
+
+		function sendJoin() {
+        	const payload = JSON.stringify({ 
+            	act: "join", 
+            	team: ["charizard", "gengar", "pikachu"] 
+        	});
+        	ws.send(payload);
+    	}
     </script>
 </body>
 </html>

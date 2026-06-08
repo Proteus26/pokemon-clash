@@ -1,8 +1,11 @@
 package network
 
 import (
+	"fmt"
+	"encoding/json"
 	"log"
 	"net/http"
+	"pokemon-clash/engine"
 	"github.com/gorilla/websocket"
 )
 
@@ -18,6 +21,7 @@ type Client struct {
 	Conn *websocket.Conn
 	Send chan []byte
 	hub *Hub
+	Player *engine.Player
 }
 
 func Servesock(w http.ResponseWriter, r *http.Request, hub *Hub) {
@@ -53,8 +57,34 @@ func (c *Client) readpump(){
 			}
 			break
 		}
-		log.Printf("Received from browser: %s\n", msg)
-		c.Send <- msg
+
+		var action engine.Action
+		err = json.Unmarshal(msg, &action)
+		if err != nil {
+			log.Println("Invalid JSON from browser:", err)
+			continue 
+		}
+
+		if action.Act == "join" {
+			playerID := fmt.Sprintf("player-%s", c.Conn.RemoteAddr().String())
+			
+			player, err := engine.Buildteam(playerID, action.Team)
+			if err != nil {
+				c.Send <- []byte(fmt.Sprintf(`{"system": "Failed to build team: %v"}`, err))
+				continue
+			}
+
+			c.Player = player	
+			c.hub.ready <- c 
+		} else {
+			if c.Player != nil {
+				log.Printf("Player %s used %s: %s", c.Player.Id, action.Act, action.Value)
+			} else {
+				log.Printf("Received combat action when there is not team")
+			}
+
+			//todo: make it actually wire up to the engine
+		}
 	}
 }
 
