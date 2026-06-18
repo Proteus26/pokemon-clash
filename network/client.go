@@ -22,6 +22,7 @@ type Client struct {
 	Send chan []byte
 	hub *Hub
 	Player *engine.Player
+	Actionchan chan engine.Action
 }
 
 func Servesock(w http.ResponseWriter, r *http.Request, hub *Hub) {
@@ -77,13 +78,13 @@ func (c *Client) readpump(){
 			c.Player = player	
 			c.hub.ready <- c 
 		} else {
-			if c.Player != nil {
+			if c.Player != nil && c.Actionchan != nil {
 				log.Printf("Player %s used %s: %s", c.Player.Id, action.Act, action.Value)
+				action.Pid = c.Player.Id
+				c.Actionchan <- action
 			} else {
 				log.Printf("Received combat action when there is not team")
 			}
-
-			//todo: make it actually wire up to the engine
 		}
 	}
 }

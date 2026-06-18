@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"pokemon-clash/engine"
 )
 
 type Hub struct {
@@ -63,6 +64,20 @@ func (h *Hub) matchmake(client *Client) {
 
 		fmt.Println("[Hub] Match found! Spinning up battle instance...")
 
-		//todo: starting the battle stuff here
+		battleid := fmt.Sprintf("battle-%s-%s", p1.Player.Id, p2.Player.Id)
+		battle := engine.InitBattle(battleid, p1.Player, p2.Player)
+
+		p1.Actionchan = battle.P1chan
+		p2.Actionchan = battle.P2chan
+
+		go battle.Start()
+
+		go func() {
+			for msg := range battle.Broadcast {
+				out := []byte(msg)
+				p1.Send <- out
+				p2.Send <- out
+			}
+		}()
 	}
 }
