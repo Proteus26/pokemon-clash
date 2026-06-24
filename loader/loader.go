@@ -36,23 +36,23 @@ type Movedata struct {
 var Pokedex map[string]Pokemondata
 var Moves map[string]Movedata
 
-func Loadall() error {
-	dexfile, err := os.ReadFile("data/pokedex.json")
+func LoadAll() error {
+	dexFile, err := os.ReadFile("data/pokedex.json")
 	if err != nil {
 		return fmt.Errorf("failed to read pokedex.json: %w", err)
 	}
 
-	err = json.Unmarshal(dexfile, &Pokedex)
+	err = json.Unmarshal(dexFile, &Pokedex)
 	if err != nil {
 		return fmt.Errorf("failed to parse pokedex.json: %w", err)
 	}
 
-	movefile, err := os.ReadFile("data/moves.json")
+	moveFile, err := os.ReadFile("data/moves.json")
 	if err != nil {
 		return fmt.Errorf("failed to read moves.json: %w", err)
 	}
 
-	err = json.Unmarshal(movefile, &Moves)
+	err = json.Unmarshal(moveFile, &Moves)
 	if err != nil {
 		return fmt.Errorf("failed to parse moves.json: %w", err)
 	}
@@ -61,7 +61,7 @@ func Loadall() error {
 	return nil
 }
 
-func Toid(s string) string {
+func ToId(s string) string {
 	s = strings.ToLower(s)
 	var sb strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -74,13 +74,13 @@ func Toid(s string) string {
 }
 
 func GetMove(id string) (Movedata, bool) {
-	nid := Toid(id)
-	move, exists := Moves[nid]
+	nId := ToId(id)
+	move, exists := Moves[nId]
 	return move, exists
 }
 
 func GetPokemon(id string) (Pokemondata, bool) {
-	nid := Toid(id)
-	pokemon, exists := Pokedex[nid]
+	nId := ToId(id)
+	pokemon, exists := Pokedex[nId]
 	return pokemon, exists
 }

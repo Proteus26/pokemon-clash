@@ -10,8 +10,8 @@ func InitBattle(id string, p1, p2 *Player) *Battle {
 		Id: id,
 		P1: p1,
 		P2: p2,
-		P1chan: make(chan Action),
-		P2chan: make(chan Action),
+		P1Chan: make(chan Action),
+		P2Chan: make(chan Action),
 		Broadcast: make(chan string),
 	}
 }
@@ -26,9 +26,9 @@ func (b *Battle) Start() {
 	
 	for {
 		select {
-		case act := <-b.P1chan:
+		case act := <-b.P1Chan:
 			act1 = &act
-		case act := <-b.P2chan:
+		case act := <-b.P2Chan:
 			act2 = &act
 		case <- turnTimer.C:
 			b.Broadcast <- "Timer expired"

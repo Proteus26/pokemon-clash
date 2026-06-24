@@ -13,7 +13,7 @@ type Hub struct {
 	waiting *Client
 }
 
-func Newhub() *Hub {
+func NewHub() *Hub {
 	return &Hub {
 		register: make(chan *Client),
 		unregister: make(chan *Client),
@@ -64,11 +64,11 @@ func (h *Hub) matchmake(client *Client) {
 
 		fmt.Println("[Hub] Match found! Spinning up battle instance...")
 
-		battleid := fmt.Sprintf("battle-%s-%s", p1.Player.Id, p2.Player.Id)
-		battle := engine.InitBattle(battleid, p1.Player, p2.Player)
+		battleId := fmt.Sprintf("battle-%s-%s", p1.Player.Id, p2.Player.Id)
+		battle := engine.InitBattle(battleId, p1.Player, p2.Player)
 
-		p1.Actionchan = battle.P1chan
-		p2.Actionchan = battle.P2chan
+		p1.ActionChan = battle.P1Chan
+		p2.ActionChan = battle.P2Chan
 
 		go battle.Start()
 

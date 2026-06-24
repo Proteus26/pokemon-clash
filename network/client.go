@@ -22,10 +22,10 @@ type Client struct {
 	Send chan []byte
 	hub *Hub
 	Player *engine.Player
-	Actionchan chan engine.Action
+	ActionChan chan engine.Action
 }
 
-func Servesock(w http.ResponseWriter, r *http.Request, hub *Hub) {
+func ServeSock(w http.ResponseWriter, r *http.Request, hub *Hub) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade connection: ", err)
@@ -40,11 +40,11 @@ func Servesock(w http.ResponseWriter, r *http.Request, hub *Hub) {
 	client.hub.register <- client
 	log.Println("Player connected")
 
-	go client.readpump()
-	go client.writepump()
+	go client.readPump()
+	go client.writePump()
 } 
 
-func (c *Client) readpump(){
+func (c *Client) readPump(){
 	defer func() {
 		c.hub.unregister <- c
 		c.Conn.Close()
@@ -69,7 +69,7 @@ func (c *Client) readpump(){
 		if action.Act == "join" {
 			playerID := fmt.Sprintf("player-%s", c.Conn.RemoteAddr().String())
 			
-			player, err := engine.Buildteam(playerID, action.Team)
+			player, err := engine.BuildTeam(playerID, action.Team)
 			if err != nil {
 				c.Send <- []byte(fmt.Sprintf(`{"system": "Failed to build team: %v"}`, err))
 				continue
@@ -78,10 +78,10 @@ func (c *Client) readpump(){
 			c.Player = player	
 			c.hub.ready <- c 
 		} else {
-			if c.Player != nil && c.Actionchan != nil {
+			if c.Player != nil && c.ActionChan != nil {
 				log.Printf("Player %s used %s: %s", c.Player.Id, action.Act, action.Value)
 				action.Pid = c.Player.Id
-				c.Actionchan <- action
+				c.ActionChan <- action
 			} else {
 				log.Printf("Received combat action when there is not team")
 			}
@@ -89,7 +89,7 @@ func (c *Client) readpump(){
 	}
 }
 
-func (c *Client) writepump() {
+func (c *Client) writePump() {
 	defer func() {
 		c.Conn.Close()
 	}()

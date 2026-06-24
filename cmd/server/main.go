@@ -11,16 +11,16 @@ import (
 )
 
 func main () {
-	err := loader.Loadall()
+	err := loader.LoadAll()
 	if err != nil {
 		log.Fatalf("server failed to start: %v\n", err)
 	}
 	
-	hub := network.Newhub()
+	hub := network.NewHub()
 	go hub.Run()
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		network.Servesock(w, r, hub)
+		network.ServeSock(w, r, hub)
 	})
 	
 	fmt.Println("")
@@ -29,22 +29,22 @@ func main () {
 		log.Fatal("ListenAndServe: ", err)
 	}
 
-	p1active, err := engine.Injectpokemon("p1a", "gengar", 100)
+	p1Active, err := engine.InjectPokemon("p1a", "gengar", 100)
 	if err != nil {
 		log.Fatalf("failed to inject p1 active %v\n", err)
 	}
 	p1 := &engine.Player{
 		Id: "playerone",
-		Active: p1active,
+		Active: p1Active,
 	}
 	
-	p2active, err := engine.Injectpokemon("p2a", "missingno", 100)
+	p2Active, err := engine.InjectPokemon("p2a", "missingno", 100)
 	if err != nil {
 		log.Fatalf("failed to inject p2 active %v\n", err)
 	}
 	p2 := &engine.Player{
 		Id: "playertwo",
-		Active: p2active,
+		Active: p2Active,
 	}
 
 	battle := engine.InitBattle("testbattle", p1, p2)
@@ -59,7 +59,7 @@ func main () {
 	
 	time.Sleep(100*time.Millisecond)
 
-	battle.P1chan <- engine.Action{
+	battle.P1Chan <- engine.Action{
 		Pid: "playerone",
 		Act: "move",
 		Value: "shadowball",
@@ -67,7 +67,7 @@ func main () {
 
 	time.Sleep(500*time.Millisecond)
 	
-	battle.P2chan <- engine.Action{
+	battle.P2Chan <- engine.Action{
 		Pid: "playertwo",
 		Act: "move",
 		Value: "tackle",

@@ -159,7 +159,7 @@ var Typechart = map[string]map[string]float64{
 	},
 }
 
-func geteff(moveType string, defenderTypes []string) float64 {
+func getEff(moveType string, defenderTypes []string) float64 {
 	mult := 1.0
 	for _, defType := range defenderTypes {
 		if match, exists := Typechart[moveType][defType]; exists {

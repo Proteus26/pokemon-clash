@@ -32,6 +32,13 @@ var (
 
 type wsmsg []byte
 type wserr error
+type connectedmsg *websocket.Conn
+
+type sessionstate int
+
+const (
+	
+)
 
 type model struct {
 	conn *websocket.Conn
@@ -39,17 +46,17 @@ type model struct {
 	err error
 }
 
-func initmodel() model {
+func initModel() model {
 	conn, _, err := websocket.DefaultDialer.Dial("ws://localhost:8080/ws", nil)
 	if err != nil {
 		log.Fatal("Failed to connect to server: ", err)
 	}
 
-	joinmsg := map[string]interface{}{
+	joinMsg := map[string]interface{}{
 		"act": "join",
 		"team": []string{"gengar", "missingno", "charizardmegax"},
 	}
-	conn.WriteJSON(joinmsg)
+	conn.WriteJSON(joinMsg)
 
 	return model{
 		conn: conn,
@@ -125,7 +132,7 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initmodel(), tea.WithAltScreen()) 
+	p := tea.NewProgram(initModel(), tea.WithAltScreen()) 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)

@@ -5,7 +5,7 @@ type Pokemon struct {
 	Mon string
 	Level int
 	Types []string
-	Maxhp int
+	MaxHp int
 	Hp int 
 	Atk int
 	Def int
@@ -33,7 +33,7 @@ type Battle struct {
 	P1 *Player
 	P2 *Player
 
-	P1chan chan Action
-	P2chan chan Action
+	P1Chan chan Action
+	P2Chan chan Action
 	Broadcast chan string
 }
