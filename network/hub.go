@@ -2,48 +2,48 @@ package network
 
 import (
 	"fmt"
+	"log"
 	"pokemon-clash/engine"
 )
 
 type Hub struct {
-	clients map[*Client] bool
-	register chan *Client
-	unregister chan *Client 
-	ready chan *Client
-	waiting *Client
+	clients    map[*Client]bool
+	register   chan *Client
+	unregister chan *Client
+	ready      chan *Client
+	waiting    *Client
 }
 
 func NewHub() *Hub {
-	return &Hub {
-		register: make(chan *Client),
+	return &Hub{
+		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		clients: make(map[*Client]bool),
-		ready: make(chan *Client),
+		clients:    make(map[*Client]bool),
+		ready:      make(chan *Client),
 	}
 }
 
 func (h *Hub) Run() {
 	for {
 		select {
-		case client := <- h.register:
+		case client := <-h.register:
 			h.clients[client] = true
-			fmt.Println("[hub] New player registered.")
+			log.Println("[Hub] New player connected to websocket.")
 
 		case client := <-h.ready:
-			fmt.Println("[hub] Queueing player")
+			log.Printf("[Hub] Queueing player %s\n", client.Player.ID)
 			h.matchmake(client)
 
-		case client := <- h.unregister:
+		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.Send)
 
 				if h.waiting == client {
 					h.waiting = nil
-					fmt.Println("[hub] Waiting player left the queue.")
+					log.Println("[Hub] Waiting player left the queue.")
 				}
-
-				fmt.Println("[hub] Player disconnected")	
+				log.Println("[Hub] Player disconnected.")
 			}
 		}
 	}
@@ -52,20 +52,20 @@ func (h *Hub) Run() {
 func (h *Hub) matchmake(client *Client) {
 	if h.waiting == nil {
 		h.waiting = client
-		client.Send <- []byte(`{"system": "Waiting for an opponent..."}`)
-		fmt.Println("[hub] Player added to waitlist")
+		client.Send <- []byte(`{"type": "system", "text": "Waiting for an opponent..."}`)
+		log.Println("[Hub] Player added to waitlist.")
 	} else {
 		p1 := h.waiting
 		p2 := client
 		h.waiting = nil
 
-		p1.Send <- []byte(`{"system": "Opponent found! Battle starting."}`)
-		p2.Send <- []byte(`{"system": "Opponent found! Battle starting."}`)
+		p1.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting."}`)
+		p2.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting."}`)
 
-		fmt.Println("[Hub] Match found! Spinning up battle instance...")
+		log.Println("[Hub] Match found! Spinning up battle instance...")
 
-		battleId := fmt.Sprintf("battle-%s-%s", p1.Player.Id, p2.Player.Id)
-		battle := engine.InitBattle(battleId, p1.Player, p2.Player)
+		battleID := fmt.Sprintf("battle-%s-%s", p1.Player.ID, p2.Player.ID)
+		battle := engine.InitBattle(battleID, p1.Player, p2.Player)
 
 		p1.ActionChan = battle.P1Chan
 		p2.ActionChan = battle.P2Chan
@@ -74,9 +74,8 @@ func (h *Hub) matchmake(client *Client) {
 
 		go func() {
 			for msg := range battle.Broadcast {
-				out := []byte(msg)
-				p1.Send <- out
-				p2.Send <- out
+				p1.Send <- msg
+				p2.Send <- msg
 			}
 		}()
 	}

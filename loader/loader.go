@@ -2,39 +2,40 @@ package loader
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"encoding/json"
 	"strings"
 )
 
-type Basestats struct {
-	Hp int `json:"hp"`
+type BaseStats struct {
+	HP  int `json:"hp"`
 	Atk int `json:"atk"`
 	Def int `json:"def"`
 	SpA int `json:"spa"`
 	SpD int `json:"spd"`
 	Spe int `json:"spe"`
-} 
+}
 
-type Pokemondata struct {
-	Id int `json:"num"`
-	Name string `json:"name"`
-	Types []string `json:"types"`
-	Basestats Basestats `json:"baseStats"`
+type PokemonData struct {
+	Num       int               `json:"num"`
+	Name      string            `json:"name"`
+	Types     []string          `json:"types"`
+	BaseStats BaseStats         `json:"baseStats"`
 	Abilities map[string]string `json:"abilities"`
 }
 
-type Movedata struct {
-	Id int `json:"num"`
-	Name string `json:"string"`
-	Bp int `json:"basePower"`
+type MoveData struct {
+	Num      int    `json:"num"`
+	Name     string `json:"name"`
+	BP       int    `json:"basePower"`
 	Category string `json:"category"`
-	Type string `json:"type"`
-	Prio int `json:"priority"`
+	Type     string `json:"type"`
+	Prio     int    `json:"priority"`
 }
 
-var Pokedex map[string]Pokemondata
-var Moves map[string]Movedata
+var Pokedex map[string]PokemonData
+var Moves map[string]MoveData
 
 func LoadAll() error {
 	dexFile, err := os.ReadFile("data/pokedex.json")
@@ -57,11 +58,11 @@ func LoadAll() error {
 		return fmt.Errorf("failed to parse moves.json: %w", err)
 	}
 
-	fmt.Printf("Successfully loaded %d Pokemon and %d Moves.\n", len(Pokedex), len(Moves))
+	log.Printf("[Loader] Successfully loaded %d Pokemon and %d Moves.\n", len(Pokedex), len(Moves))
 	return nil
 }
 
-func ToId(s string) string {
+func ToID(s string) string {
 	s = strings.ToLower(s)
 	var sb strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -73,14 +74,14 @@ func ToId(s string) string {
 	return sb.String()
 }
 
-func GetMove(id string) (Movedata, bool) {
-	nId := ToId(id)
-	move, exists := Moves[nId]
+func GetMove(id string) (MoveData, bool) {
+	nID := ToID(id)
+	move, exists := Moves[nID]
 	return move, exists
 }
 
-func GetPokemon(id string) (Pokemondata, bool) {
-	nId := ToId(id)
-	pokemon, exists := Pokedex[nId]
+func GetPokemon(id string) (PokemonData, bool) {
+	nID := ToID(id)
+	pokemon, exists := Pokedex[nID]
 	return pokemon, exists
 }

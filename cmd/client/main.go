@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -20,18 +21,8 @@ var (
 	surface1 = lipgloss.Color("#45475a")
 	surface2 = lipgloss.Color("#585b70")
 
-	headerStyle = lipgloss.NewStyle().
-	Foreground(crust).
-	Background(mauve).
-	Bold(true).
-	Padding(0, 1).
-	MarginBottom(1)
-
-	boxStyle = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	BorderForeground(surface1).
-	Padding(0, 1)
-
+	headerStyle = lipgloss.NewStyle().Foreground(crust).Background(mauve).Bold(true)
+	boxStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(surface1).Padding(0, 1)
 	activeBoxStyle = boxStyle.BorderForeground(mauve)
 
 	sysStyle = lipgloss.NewStyle().Foreground(blue).Bold(true)
@@ -53,20 +44,24 @@ const (
 	stateError
 )
 
-type model struct {
-	state sessionState
-	conn *websocket.Conn
-	logs []string
-	err error
+type ServerMessage struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
 
-	width int
+type model struct {
+	state  sessionState
+	conn   *websocket.Conn
+	logs   []string
+	err    error
+	width  int
 	height int
 }
 
-func initModel() model {
-	return model {
+func initialModel() model {
+	return model{
 		state: stateConnecting,
-		logs: []string{},
+		logs:  []string{},
 	}
 }
 
@@ -77,9 +72,8 @@ func (m model) Init() tea.Cmd {
 func connectToServer() tea.Msg {
 	conn, _, err := websocket.DefaultDialer.Dial("ws://localhost:8080/ws", nil)
 	if err != nil {
-		return wsErr(fmt.Errorf("server offline: %v",err))
+		return wsErr(fmt.Errorf("server offline: %v", err))
 	}
-
 	return connectedMsg(conn)
 }
 
@@ -95,7 +89,6 @@ func listener(conn *websocket.Conn) tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -127,24 +120,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		joinMsg := map[string]interface{}{
 			"act":  "join",
-			"team": []string{"gengar", "missingno", "charizardmegax"},
+			"team": []string{"gengar", "venusaur", "charizard"},
 		}
 		m.conn.WriteJSON(joinMsg)
-
-		m.logs = append(m.logs, sysStyle.Render("[system] Connected, waiting for opps"))
-
+		m.logs = append(m.logs, sysStyle.Render("[System] Connected, waiting for opps"))
 		return m, listener(m.conn)
 
 	case wsMsg:
 		m.state = stateBattle
-		m.logs = append(m.logs, string(msg))
 
-		maxLogs := m.height - 10 
-		if maxLogs < 5 { maxLogs = 5 }
+		var sm ServerMessage
+		if err := json.Unmarshal(msg, &sm); err == nil && sm.Text != "" {
+			m.logs = append(m.logs, sm.Text)
+		} else {
+			m.logs = append(m.logs, string(msg))
+		}
+
+		maxLogs := m.height - 10
+		if maxLogs < 5 {
+			maxLogs = 5
+		}
 		if len(m.logs) > maxLogs {
 			m.logs = m.logs[len(m.logs)-maxLogs:]
 		}
-
 		return m, listener(m.conn)
 
 	case wsErr:
@@ -164,27 +162,26 @@ func (m model) View() string {
 		return "Initializing..."
 	}
 
-	header := headerStyle.Width(m.width).Render(" 󰑔 POKEMON CLASH ENGINE ")
-
+	headerText := " 󰨉 POKEMON CLASH ENGINE " 
+	header := headerStyle.Width(m.width).Render(headerText)
 	contentWidth := m.width - 2
 	contentHeight := m.height - 4
 	var content string
 
 	switch m.state {
 	case stateConnecting:
-		content = activeBoxStyle.Width(contentWidth).Height(contentHeight).
-		Render(dimStyle.Render("\n Dialing server..."))
+		content = activeBoxStyle.Width(contentWidth).Height(contentHeight).Render(dimStyle.Render("\n Dialing server..."))
 
 	case stateError:
-		content = activeBoxStyle.Width(contentWidth).Height(contentHeight).
-		Render(errStyle.Render(fmt.Sprintf("\n Connection Failed: %v\n\n", m.err)) +
-		dimStyle.Render(" Make sure the Go engine is running."))
+		content = activeBoxStyle.Width(contentWidth).Height(contentHeight).Render(errStyle.Render(fmt.Sprintf("\n Connection Failed: %v\n\n", m.err)) + dimStyle.Render(" Make sure the Go engine is running."))
 
 	case stateMatchmaking:
 		var b strings.Builder
 		b.WriteString(sysStyle.Render("\n MATCHMAKING\n\n"))
 		for _, l := range m.logs {
-			b.WriteString(" " + l + "\n")
+			b.WriteString(" ")
+			b.WriteString(l)
+			b.WriteString("\n")
 		}
 		content = activeBoxStyle.Width(contentWidth).Height(contentHeight).Render(b.String())
 
@@ -192,25 +189,29 @@ func (m model) View() string {
 		leftWidth := (contentWidth * 7) / 10
 		var logs strings.Builder
 		for _, l := range m.logs {
-			logs.WriteString(l + "\n")
+			logs.WriteString(l)
+			logs.WriteString("\n")
 		}
 		logPane := activeBoxStyle.Width(leftWidth).Height(contentHeight).Render(logs.String())
 
 		rightWidth := contentWidth - leftWidth - 2
 		var info strings.Builder
-		
+
 		info.WriteString(sysStyle.Render(" YOUR TEAM\n"))
 		info.WriteString(" Gengar\n")
-		info.WriteString(" Missingno\n")
-		info.WriteString(" Charizard-Mega-X\n")
-		
-		info.WriteString("\n" + sysStyle.Render(" CONTROLS\n"))
-		info.WriteString(dimStyle.Render(" 1 │") + " Shadow Ball\n")
-		info.WriteString(dimStyle.Render(" 2 │") + " Tackle\n")
-		info.WriteString(dimStyle.Render(" q │") + " Quit\n")
-		
-		infoPane := boxStyle.Width(rightWidth).Height(contentHeight).Render(info.String())
+		info.WriteString(" Venusaur\n")
+		info.WriteString(" Charizard\n")
 
+		info.WriteString("\n")
+		info.WriteString(sysStyle.Render(" CONTROLS\n"))
+		info.WriteString(dimStyle.Render(" 1 │"))
+		info.WriteString(" Shadow Ball\n")
+		info.WriteString(dimStyle.Render(" 2 │"))
+		info.WriteString(" Tackle\n")
+		info.WriteString(dimStyle.Render(" q │"))
+		info.WriteString(" Quit\n")
+
+		infoPane := boxStyle.Width(rightWidth).Height(contentHeight).Render(info.String())
 		content = lipgloss.JoinHorizontal(lipgloss.Top, logPane, infoPane)
 	}
 
@@ -234,9 +235,9 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initModel(), tea.WithAltScreen()) 
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("error: %v", err)
+		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
 }

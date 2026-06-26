@@ -1,39 +1,51 @@
 package engine
 
 type Pokemon struct {
-	Id string
-	Mon string
+	ID    string
+	Mon   string
 	Level int
 	Types []string
-	MaxHp int
-	Hp int 
-	Atk int
-	Def int
-	Spa int
-	Spd int
-	Spe int
-	//todo: add more stuff like abilities statuses moves and shit
+	MaxHP int
+	HP    int
+	Atk   int
+	Def   int
+	SpA   int
+	SpD   int
+	Spe   int
 }
 
 type Player struct {
-	Id string
-	Team []*Pokemon
+	ID     string
+	Team   []*Pokemon
 	Active *Pokemon
 }
 
 type Action struct {
-	Pid string `json:"-"`
-	Act string `json:"act"`
-	Value string `json:"value,omitempty"`
-	Team []string `json:"team,omitempty"`
+	PID   string   `json:"-"`
+	Act   string   `json:"act"`
+	Value string   `json:"value,omitempty"`
+	Team  []string `json:"team,omitempty"`
 }
 
 type Battle struct {
-	Id string
-	P1 *Player
-	P2 *Player
+	ID        string
+	P1        *Player
+	P2        *Player
+	P1Chan    chan Action
+	P2Chan    chan Action
+	Broadcast chan []byte
+}
 
-	P1Chan chan Action
-	P2Chan chan Action
-	Broadcast chan string
+type ServerMessage struct {
+	Type  string `json:"type"`
+	Event string `json:"event,omitempty"`
+	Text  string `json:"text"`
+
+	P1Active string `json:"p1_active,omitempty"`
+	P1HP     int    `json:"p1_hp,omitempty"`
+	P1Max    int    `json:"p1_max,omitempty"`
+
+	P2Active string `json:"p2_active,omitempty"`
+	P2HP     int    `json:"p2_hp,omitempty"`
+	P2Max    int    `json:"p2_max,omitempty"`
 }

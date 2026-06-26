@@ -1,5 +1,45 @@
-# pokemon-clash
+# Pokémon Clash
 
-To initiate, run the command 
-```go run fetcher.go``` 
-in the project root directory to download dex and move data.
+Pokémon Clash is a terminal-based online multiplayer Pokémon battle simulator written in Go. It uses a server-client architecture over WebSockets, featuring a real-time combat engine and a TUI made using bubbletea.
+
+---
+
+## Setup & Running Guide
+
+Follow these steps to run the game locally:
+
+### Prerequisites
+Make sure you have [Go](https://go.dev) installed on your system.
+
+### Step 1: Download Datasets
+Initialize the application by running the data fetcher script. This will download `pokedex.json` and `moves.json` into a local `data/` folder:
+```bash
+go run cmd/scripts/fetcher.go
+```
+
+### Step 2: Spin Up the Server
+Start the backend WebSocket matchmaker and battle engine:
+```bash
+go run cmd/server/main.go
+```
+The server will start listening on port `:8080`.
+
+### Step 3: Run the Game Client
+Launch a terminal client session (open a second terminal or run multiple sessions to test matchmaking):
+```bash
+go run cmd/client/main.go
+```
+Once two clients connect, they will be matched immediately and the battle will begin.
+
+---
+
+## Gameplay & Controls
+
+* **Matchmaking**: Connecting to the server queues you automatically. Each player starts with a team of **Gengar**, **Venusaur**, and **Charizard**. This can be modified by modifying the data in ```cmd/client/main.go```.
+* **Battle Layout**:
+  * **Left Panel**: Scrolling log detailing battle events (e.g., moves used, damage dealt, and fainted Pokémon).
+  * **Right Panel**: Listing of your current active/benched team and key bindings.
+* **Controls**:
+  * `1` : Select and execute Move 1 (e.g., Shadow Ball)
+  * `2` : Select and execute Move 2 (e.g., Tackle)
+  * `q` / `Ctrl+C` : Gracefully disconnect and exit the program

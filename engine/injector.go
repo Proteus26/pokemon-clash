@@ -5,54 +5,54 @@ import (
 	"pokemon-clash/loader"
 )
 
-func InjectPokemon(id, pkmnId string, level int) (*Pokemon, error){
-	blueprint, exists := loader.GetPokemon(pkmnId)
+func InjectPokemon(id, pkmnID string, level int) (*Pokemon, error) {
+	blueprint, exists := loader.GetPokemon(pkmnID)
 	if !exists {
-		return nil, fmt.Errorf("pokemon %s not found in the dex", pkmnId)
+		return nil, fmt.Errorf("pokemon %s not found in the dex", pkmnID)
 	}
 
-	maxHp := ((2*blueprint.Basestats.Hp)*level/100) + level + 10
-	atk := ((2*blueprint.Basestats.Atk)*level/100) + 5 
-	def := ((2*blueprint.Basestats.Def)*level/100) + 5
-	spa := ((2*blueprint.Basestats.SpA)*level/100) + 5
-	spd := ((2*blueprint.Basestats.SpD)*level/100) + 5
-	spe := ((2*blueprint.Basestats.Spe)*level/100) + 5
+	maxHP := ((2 * blueprint.BaseStats.HP) * level / 100) + level + 10
+	atk := ((2 * blueprint.BaseStats.Atk) * level / 100) + 5
+	def := ((2 * blueprint.BaseStats.Def) * level / 100) + 5
+	spa := ((2 * blueprint.BaseStats.SpA) * level / 100) + 5
+	spd := ((2 * blueprint.BaseStats.SpD) * level / 100) + 5
+	spe := ((2 * blueprint.BaseStats.Spe) * level / 100) + 5
 
 	return &Pokemon{
-		Id: id,
-		Mon: blueprint.Name,
+		ID:    id,
+		Mon:   blueprint.Name,
 		Level: level,
 		Types: blueprint.Types,
-		MaxHp: maxHp,
-		Hp: maxHp,
-		Atk: atk,
-		Def: def,
-		Spa: spa,
-		Spd: spd,
-		Spe: spe,
+		MaxHP: maxHP,
+		HP:    maxHP,
+		Atk:   atk,
+		Def:   def,
+		SpA:   spa,
+		SpD:   spd,
+		Spe:   spe,
 	}, nil
-} 
+}
 
-func BuildTeam(pid string, teamIds []string) (*Player, error) {
-	if len(teamIds) == 0 || len(teamIds) > 6 {
-		return nil, fmt.Errorf("Invalid team size")
+func BuildTeam(pid string, teamIDs []string) (*Player, error) {
+	if len(teamIDs) == 0 || len(teamIDs) > 6 {
+		return nil, fmt.Errorf("invalid team size")
 	}
 
 	var team []*Pokemon
 
-	for i, mon := range teamIds {
-		instanceId := fmt.Sprintf("%s-%d", pid, i)
+	for i, mon := range teamIDs {
+		instanceID := fmt.Sprintf("%s-%d", pid, i)
 
-		pkmn, err := InjectPokemon(instanceId, mon, 50)
+		pkmn, err := InjectPokemon(instanceID, mon, 50)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to load %s: %v", mon, err)
+			return nil, fmt.Errorf("failed to load %s: %v", mon, err)
 		}
 		team = append(team, pkmn)
 	}
 
-	return &Player {
-		Id: pid,
-		Team: team,
+	return &Player{
+		ID:     pid,
+		Team:   team,
 		Active: team[0],
 	}, nil
 }

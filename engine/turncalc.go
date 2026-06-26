@@ -24,64 +24,62 @@ func (b *Battle) moveOrder(act1, act2 Action) {
 		} else {
 			p1First = rand.Intn(2) == 0
 		}
-	} 
+	}
 
 	if p1First {
 		b.execAction(b.P1, b.P2, act1)
-		if b.P2.Active.Hp > 0 {
+		if b.P2.Active.HP > 0 {
 			b.execAction(b.P2, b.P1, act2)
 		}
 	} else {
 		b.execAction(b.P2, b.P1, act2)
-		if b.P1.Active.Hp > 0 {
+		if b.P1.Active.HP > 0 {
 			b.execAction(b.P1, b.P2, act1)
 		}
-
 	}
 }
 
 func (b *Battle) execAction(attacker, defender *Player, act Action) {
 	if act.Act == "switch" {
-		b.Broadcast <- fmt.Sprintf(`{"event": "switch", "player": "%s", "pokemon": "%s"}`, attacker.Id, act.Act)
+		b.EmitBattle("switch", fmt.Sprintf("%s switched to %s!", attacker.ID, act.Value))
 	} else if act.Act == "move" {
 		damage := calcDamage(attacker.Active, defender.Active, act.Value)
 
-		defender.Active.Hp -= damage
-		if defender.Active.Hp < 0 {
-			defender.Active.Hp = 0
+		defender.Active.HP -= damage
+		if defender.Active.HP < 0 {
+			defender.Active.HP = 0
 		}
 
-		b.Broadcast <- fmt.Sprintf(`{"event": "move", "player": "%s", "pokemon": "%s", "move": "%s"}`, attacker.Id, attacker.Active.Mon, act.Value)
-		b.Broadcast <- fmt.Sprintf(`{"event": "damage", "target": "%s", "amount": %d, "remaining_hp": %d}`, defender.Id, damage, defender.Active.Hp)
+		b.EmitBattle("move", fmt.Sprintf("%s used %s!", attacker.Active.Mon, act.Value))
+		b.EmitBattle("damage", fmt.Sprintf("%s took %d damage!", defender.Active.Mon, damage))
 
-		if defender.Active.Hp == 0 {
-			b.Broadcast <- fmt.Sprintf(`{"event": "faint", "target": "%s"}`, defender.Id)
+		if defender.Active.HP == 0 {
+			b.EmitBattle("faint", fmt.Sprintf("%s fainted!", defender.Active.Mon))
 		}
-	} //todo: add other Action types maybe and also change to switch then because lsp is saying so
+	}
 }
 
-func calcDamage(attacker, defender *Pokemon, moveId string) int {
-	moveData, exists := loader.GetMove(moveId)
+func calcDamage(attacker, defender *Pokemon, moveID string) int {
+	moveData, exists := loader.GetMove(moveID)
 	if !exists {
-		fmt.Printf("move '%s' not found\n", moveId)
 		return 10
 	}
 
 	if moveData.Category == "Status" {
 		return 0
 	}
-	
+
 	var a, d float64
 	if moveData.Category == "Physical" {
 		a = float64(attacker.Atk)
 		d = float64(defender.Def)
 	} else if moveData.Category == "Special" {
-		a = float64(attacker.Spa)
-		d = float64(defender.Spd)
+		a = float64(attacker.SpA)
+		d = float64(defender.SpD)
 	}
 
 	level := float64(attacker.Level)
-	power := float64(moveData.Bp)
+	power := float64(moveData.BP)
 
 	stab := 1.0
 	for _, t := range attacker.Types {
@@ -91,12 +89,12 @@ func calcDamage(attacker, defender *Pokemon, moveId string) int {
 		}
 	}
 
-	baseDmg := ((((2.0*level/5.0) + 2.0)*power*(a/d))/50.0) + 2.0
-	mult := getEff(moveData.Type, defender.Types)
+	baseDmg := ((((2.0 * level / 5.0) + 2.0) * power * (a / d)) / 50.0) + 2.0
+	mult := GetEff(moveData.Type, defender.Types)
 	rng := 0.85 + (rand.Float64() * 0.15)
 	mod := stab * mult * rng
 
-	finalDmg := int(baseDmg*mod)
+	finalDmg := int(baseDmg * mod)
 
 	if mult == 0 {
 		return 0
@@ -106,5 +104,4 @@ func calcDamage(attacker, defender *Pokemon, moveId string) int {
 	}
 
 	return finalDmg
-	//todo: some lsp optimizations to the code by usiing swtich statements and slices ig
 }
