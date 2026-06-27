@@ -5,7 +5,7 @@ import (
 	"pokemon-clash/loader"
 )
 
-func InjectPokemon(id, pkmnID string, level int) (*Pokemon, error) {
+func InjectPokemon(id, pkmnID string, level int, moves []string) (*Pokemon, error) {
 	blueprint, exists := loader.GetPokemon(pkmnID)
 	if !exists {
 		return nil, fmt.Errorf("pokemon %s not found in the dex", pkmnID)
@@ -23,6 +23,7 @@ func InjectPokemon(id, pkmnID string, level int) (*Pokemon, error) {
 		Mon:   blueprint.Name,
 		Level: level,
 		Types: blueprint.Types,
+		Moves: moves,
 		MaxHP: maxHP,
 		HP:    maxHP,
 		Atk:   atk,
@@ -33,17 +34,17 @@ func InjectPokemon(id, pkmnID string, level int) (*Pokemon, error) {
 	}, nil
 }
 
-func BuildTeam(pid string, teamIDs []string) (*Player, error) {
-	if len(teamIDs) == 0 || len(teamIDs) > 6 {
+func BuildTeam(pid string, members []TeamMember) (*Player, error) {
+	if len(members) == 0 || len(members) > 6 {
 		return nil, fmt.Errorf("invalid team size")
 	}
 
 	var team []*Pokemon
 
-	for i, mon := range teamIDs {
+	for i, mon := range members {
 		instanceID := fmt.Sprintf("%s-%d", pid, i)
 
-		pkmn, err := InjectPokemon(instanceID, mon, 50)
+		pkmn, err := InjectPokemon(instanceID, mon.Mon, 50, mon.Moves)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load %s: %v", mon, err)
 		}

@@ -4,6 +4,14 @@ Pokémon Clash is a terminal-based online multiplayer Pokémon battle simulator 
 
 ---
 
+## TODO
+
+* Fixing the issue with the TUI breaking for the first mon and move for some reason
+* Add switch support
+* Add a more immersive battle menu with sprites maybe? to look more like the GBA battle screen
+
+---
+
 ## Setup & Running Guide
 
 Follow these steps to run the game locally:
@@ -24,10 +32,20 @@ go run cmd/server/main.go
 ```
 The server will start listening on port `:8080`.
 
+### Step 3: Create the Teams 
+Create a team json file in `data/<teamname>.json`
+It should have the format:
+```bash
+[
+  { "mon": "<name of the pokemon>", "moves": ["<move1>", "<move2>", "<move3>", "<move4>"] },
+  ...and so on with the other 5 mons.
+]
+```
+
 ### Step 3: Run the Game Client
 Launch a terminal client session (open a second terminal or run multiple sessions to test matchmaking):
 ```bash
-go run cmd/client/main.go
+go run cmd/client/main.go data/<teamname>.json 
 ```
 Once two clients connect, they will be matched immediately and the battle will begin.
 
@@ -40,6 +58,8 @@ Once two clients connect, they will be matched immediately and the battle will b
   * **Left Panel**: Scrolling log detailing battle events (e.g., moves used, damage dealt, and fainted Pokémon).
   * **Right Panel**: Listing of your current active/benched team and key bindings.
 * **Controls**:
-  * `1` : Select and execute Move 1 (e.g., Shadow Ball)
-  * `2` : Select and execute Move 2 (e.g., Tackle)
+  * `1` : Select and execute Move 1
+  * `2` : Select and execute Move 2
+  * `3` : Select and execute Move 3
+  * `4` : Select and execute Move 4
   * `q` / `Ctrl+C` : Gracefully disconnect and exit the program

@@ -49,6 +49,11 @@ type ServerMessage struct {
 	Text string `json:"text"`
 }
 
+type LocalMon struct {
+	Mon   string   `json:"mon"` 
+	Moves []string `json:"moves"`
+}
+
 type model struct {
 	state  sessionState
 	conn   *websocket.Conn
@@ -56,12 +61,14 @@ type model struct {
 	err    error
 	width  int
 	height int
+	team   []LocalMon
 }
 
-func initialModel() model {
+func initialModel(loadedTeam []LocalMon) model {
 	return model{
 		state: stateConnecting,
 		logs:  []string{},
+		team:  loadedTeam,
 	}
 }
 
@@ -105,12 +112,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.state == stateBattle {
 			switch msg.String() {
-			case "1":
-				m.logs = append(m.logs, cmdStyle.Render(">> Sent: Shadow Ball"))
-				m.conn.WriteJSON(map[string]string{"act": "move", "value": "shadowball"})
-			case "2":
-				m.logs = append(m.logs, cmdStyle.Render(">> Sent: Tackle"))
-				m.conn.WriteJSON(map[string]string{"act": "move", "value": "tackle"})
+			case "1", "2", "3", "4":
+				id := int(msg.String()[0] - '1')
+
+				if id >= 0 && id < len(m.team[0].Moves) {
+					selectedMove := m.team[0].Moves[id]
+					m.logs = append(m.logs, cmdStyle.Render(">> Sent: "+selectedMove))
+					m.conn.WriteJSON(map[string]string{"act": "move", "value": selectedMove})
+				}
 			}
 		}
 
@@ -120,7 +129,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		joinMsg := map[string]interface{}{
 			"act":  "join",
-			"team": []string{"gengar", "venusaur", "charizard"},
+			"team": m.team, 
 		}
 		m.conn.WriteJSON(joinMsg)
 		m.logs = append(m.logs, sysStyle.Render("[System] Connected, waiting for opps"))
@@ -198,16 +207,21 @@ func (m model) View() string {
 		var info strings.Builder
 
 		info.WriteString(sysStyle.Render(" YOUR TEAM\n"))
-		info.WriteString(" Gengar\n")
-		info.WriteString(" Venusaur\n")
-		info.WriteString(" Charizard\n")
+		for i, mon := range m.team {
+			displayName := strings.ToUpper(string(mon.Mon[0])) + mon.Mon[1:]
+			if i == 0 {
+				info.WriteString(activeBoxStyle.Render(" ▶ " + displayName) + "\n")
+			} else {
+				info.WriteString("   " + displayName + "\n")
+			}
+		}
 
 		info.WriteString("\n")
 		info.WriteString(sysStyle.Render(" CONTROLS\n"))
-		info.WriteString(dimStyle.Render(" 1 │"))
-		info.WriteString(" Shadow Ball\n")
-		info.WriteString(dimStyle.Render(" 2 │"))
-		info.WriteString(" Tackle\n")
+		for i, move := range m.team[0].Moves {
+			info.WriteString(dimStyle.Render(fmt.Sprintf(" %d │", i+1)))
+			info.WriteString(" " + move + "\n")
+		}
 		info.WriteString(dimStyle.Render(" q │"))
 		info.WriteString(" Quit\n")
 
@@ -235,7 +249,24 @@ func (m model) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	filename := "data/team1.json"
+	if len(os.Args) > 1 {
+		filename = os.Args[1]
+	}
+
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Printf("failed to load team file '%s': %v\n", filename, err)
+		os.Exit(1)
+	}
+
+	var loadedTeam []LocalMon
+	if err := json.Unmarshal(bytes, &loadedTeam); err != nil {
+		fmt.Printf("Invalid JSON in team file: %v\n", err)
+		os.Exit(1)
+	}
+
+	p := tea.NewProgram(initialModel(loadedTeam), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)

@@ -5,6 +5,7 @@ type Pokemon struct {
 	Mon   string
 	Level int
 	Types []string
+	Moves []string
 	MaxHP int
 	HP    int
 	Atk   int
@@ -20,11 +21,16 @@ type Player struct {
 	Active *Pokemon
 }
 
+type TeamMember struct {
+	Mon   string   `json:"mon"`
+	Moves []string `json:"moves"`
+}
+
 type Action struct {
-	PID   string   `json:"-"`
-	Act   string   `json:"act"`
-	Value string   `json:"value,omitempty"`
-	Team  []string `json:"team,omitempty"`
+	PID   string       `json:"-"`
+	Act   string       `json:"act"`
+	Value string       `json:"value,omitempty"`
+	Team  []TeamMember `json:"team,omitempty"`
 }
 
 type Battle struct {
