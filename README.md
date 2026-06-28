@@ -19,21 +19,8 @@ Follow these steps to run the game locally:
 ### Prerequisites
 Make sure you have [Go](https://go.dev) installed on your system.
 
-### Step 1: Download Datasets
-Initialize the application by running the data fetcher script. This will download `pokedex.json` and `moves.json` into a local `data/` folder:
-```bash
-go run cmd/scripts/fetcher.go
-```
-
-### Step 2: Spin Up the Server
-Start the backend WebSocket matchmaker and battle engine:
-```bash
-go run cmd/server/main.go
-```
-The server will start listening on port `:8080`.
-
-### Step 3: Create the Teams 
-Create a team json file in `data/<teamname>.json`
+### Step 1: Create the Teams 
+Create a team json file in `data/team<teamname>.json`
 It should have the format:
 ```bash
 [
@@ -42,10 +29,23 @@ It should have the format:
 ]
 ```
 
-### Step 3: Run the Game Client
+### Step 2: Download Datasets
+Initialize the application by running the data fetcher script. This will download `pokedex.json` and `moves.json` into a local `data/` folder:
+```bash
+go run cmd/scripts/fetcher.go
+```
+
+### Step 3: Spin Up the Server
+Start the backend WebSocket matchmaker and battle engine:
+```bash
+go run cmd/server/main.go
+```
+The server will start listening on port `:8080`.
+
+### Step 4: Run the Game Client
 Launch a terminal client session (open a second terminal or run multiple sessions to test matchmaking):
 ```bash
-go run cmd/client/main.go data/<teamname>.json 
+go run cmd/client/main.go data/team<teamname>.json 
 ```
 Once two clients connect, they will be matched immediately and the battle will begin.
 
