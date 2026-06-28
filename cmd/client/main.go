@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gorilla/websocket"
+	"github.com/qeesung/image2ascii/convert"
 )
 
 var (
@@ -45,8 +46,10 @@ const (
 )
 
 type ServerMessage struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	P1Active string `json:"p1_active"`
+	P2Active string `json:"p2_active"`
 }
 
 type LocalMon struct {
@@ -55,20 +58,24 @@ type LocalMon struct {
 }
 
 type model struct {
-	state  sessionState
-	conn   *websocket.Conn
-	logs   []string
-	err    error
-	width  int
-	height int
-	team   []LocalMon
+	state       sessionState
+	conn        *websocket.Conn
+	logs        []string
+	err         error
+	width       int
+	height      int
+	team        []LocalMon
+	p1Active    string
+	p2Active    string
+	spriteCache map[string]string
 }
 
 func initialModel(loadedTeam []LocalMon) model {
 	return model{
-		state: stateConnecting,
-		logs:  []string{},
-		team:  loadedTeam,
+		state:       stateConnecting,
+		logs:        []string{},
+		team:        loadedTeam,
+		spriteCache: make(map[string]string),
 	}
 }
 
@@ -139,13 +146,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = stateBattle
 
 		var sm ServerMessage
-		if err := json.Unmarshal(msg, &sm); err == nil && sm.Text != "" {
-			m.logs = append(m.logs, sm.Text)
+		if err := json.Unmarshal(msg, &sm); err == nil {
+			if sm.Text != "" {
+				m.logs = append(m.logs, sm.Text)
+			}
+
+			converter := convert.NewImageConverter()
+			opt :=  convert.DefaultOptions
+			opt.FixedWidth = 35
+			opt.FixedHeight = 18
+			opt.Colored = true
+
+			if sm.P1Active != "" {
+				m.p1Active = strings.ToLower(sm.P1Active)
+				if _, exists := m.spriteCache[m.p1Active+"_back"]; !exists {
+					ascii := converter.ImageFile2ASCIIString(fmt.Sprintf("data/sprites/back/%s.png", m.p1Active), &opt)
+					m.spriteCache[m.p1Active+"_back"] = ascii
+				}
+			}
+
+			if sm.P2Active != "" {
+				m.p2Active = strings.ToLower(sm.P2Active)
+				if _, exists := m.spriteCache[m.p2Active+"_front"]; !exists {
+					ascii := converter.ImageFile2ASCIIString(fmt.Sprintf("data/sprites/front/%s.png", m.p2Active), &opt)
+					m.spriteCache[m.p2Active+"_front"] = ascii
+				}
+			}
 		} else {
 			m.logs = append(m.logs, string(msg))
 		}
 
-		maxLogs := m.height - 10
+		maxLogs := m.height - 28
 		if maxLogs < 5 {
 			maxLogs = 5
 		}
@@ -196,12 +227,23 @@ func (m model) View() string {
 
 	case stateBattle:
 		leftWidth := (contentWidth * 7) / 10
+
+		p1Sprite := m.spriteCache[m.p1Active+"_back"]
+		p2Sprite := m.spriteCache[m.p2Active+"_front"]
+		
+		arenaStr := lipgloss.JoinHorizontal(lipgloss.Bottom, 
+			lipgloss.NewStyle().Width(leftWidth/2).Align(lipgloss.Left).Render(p1Sprite),
+			lipgloss.NewStyle().Width(leftWidth/2).Align(lipgloss.Right).Render(p2Sprite),
+		)
+		arenaPane := activeBoxStyle.Width(leftWidth).Height(20).Render(arenaStr)
+
 		var logs strings.Builder
 		for _, l := range m.logs {
 			logs.WriteString(l)
 			logs.WriteString("\n")
 		}
-		logPane := activeBoxStyle.Width(leftWidth).Height(contentHeight).Render(logs.String())
+		logPane := activeBoxStyle.Width(leftWidth).Height(contentHeight - 22).Render(logs.String())
+		leftSide := lipgloss.JoinVertical(lipgloss.Left, arenaPane, logPane)
 
 		rightWidth := contentWidth - leftWidth - 2
 		var info strings.Builder
@@ -226,7 +268,7 @@ func (m model) View() string {
 		info.WriteString(" Quit\n")
 
 		infoPane := boxStyle.Width(rightWidth).Height(contentHeight).Render(info.String())
-		content = lipgloss.JoinHorizontal(lipgloss.Top, logPane, infoPane)
+		content = lipgloss.JoinHorizontal(lipgloss.Top, leftSide, infoPane)
 	}
 
 	modeStr := " MATCHMAKING "
