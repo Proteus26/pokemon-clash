@@ -50,6 +50,7 @@ type ServerMessage struct {
 	Text     string `json:"text"`
 	P1Active string `json:"p1_active"`
 	P2Active string `json:"p2_active"`
+	Role     string `json:"role,omitempty"`
 }
 
 type LocalMon struct {
@@ -68,6 +69,7 @@ type model struct {
 	p1Active    string
 	p2Active    string
 	spriteCache map[string]string
+	myRole      string
 }
 
 func initialModel(loadedTeam []LocalMon) model {
@@ -150,6 +152,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if sm.Text != "" {
 				m.logs = append(m.logs, sm.Text)
 			}
+			if sm.Role != "" {
+				m.myRole = sm.Role
+			}
+			if m.myRole == "" {
+				m.myRole = "p1"
+			}
+
+			var myMon, oppMon string
+			if m.myRole == "p2" {
+				myMon = sm.P2Active
+				oppMon = sm.P1Active
+			} else {
+				myMon = sm.P1Active
+				oppMon = sm.P2Active
+			}
 
 			converter := convert.NewImageConverter()
 			opt :=  convert.DefaultOptions
@@ -157,19 +174,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			opt.FixedHeight = 18
 			opt.Colored = true
 
-			if sm.P1Active != "" {
-				m.p1Active = strings.ToLower(sm.P1Active)
+			if myMon != "" {
+				m.p1Active = strings.ToLower(myMon)
 				if _, exists := m.spriteCache[m.p1Active+"_back"]; !exists {
-					ascii := converter.ImageFile2ASCIIString(fmt.Sprintf("data/sprites/back/%s.png", m.p1Active), &opt)
-					m.spriteCache[m.p1Active+"_back"] = ascii
+					m.spriteCache[m.p1Active+"_back"] = converter.ImageFile2ASCIIString(fmt.Sprintf("data/sprites/back/%s.png", m.p1Active), &opt)
 				}
 			}
 
-			if sm.P2Active != "" {
-				m.p2Active = strings.ToLower(sm.P2Active)
+			if oppMon != "" {
+				m.p2Active = strings.ToLower(oppMon)
 				if _, exists := m.spriteCache[m.p2Active+"_front"]; !exists {
-					ascii := converter.ImageFile2ASCIIString(fmt.Sprintf("data/sprites/front/%s.png", m.p2Active), &opt)
-					m.spriteCache[m.p2Active+"_front"] = ascii
+					m.spriteCache[m.p2Active+"_front"] = converter.ImageFile2ASCIIString(fmt.Sprintf("data/sprites/front/%s.png", m.p2Active), &opt)
 				}
 			}
 		} else {

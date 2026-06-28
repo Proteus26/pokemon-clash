@@ -59,8 +59,8 @@ func (h *Hub) matchmake(client *Client) {
 		p2 := client
 		h.waiting = nil
 
-		p1.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting."}`)
-		p2.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting."}`)
+		p1.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p1"}`)
+		p2.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p2"}`)
 
 		log.Println("[Hub] Match found! Spinning up battle instance...")
 
