@@ -6,9 +6,9 @@ Pokémon Clash is a terminal-based online multiplayer Pokémon battle simulator 
 
 ## TODO
 
-* Fixing the issue with the TUI breaking for the first mon and move for some reason
+* Fixing the issue with the TUI breaking for the first mon and move for some reason and the misalignment AHHH
 * Add switch support
-* Add a more immersive battle menu with sprites maybe? to look more like the GBA battle screen
+* Fix the timer bs
 
 ---
 

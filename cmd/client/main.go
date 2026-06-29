@@ -241,50 +241,73 @@ func (m model) View() string {
 		content = activeBoxStyle.Width(contentWidth).Height(contentHeight).Render(b.String())
 
 	case stateBattle:
-		leftWidth := (contentWidth * 7) / 10
+		topHeight := (contentHeight * 7) / 10
+		bottomHeight := contentHeight - topHeight - 1
+		leftWidth := (contentWidth * 6) / 10
+		rightWidth := contentWidth - leftWidth - 2
 
 		p1Sprite := m.spriteCache[m.p1Active+"_back"]
 		p2Sprite := m.spriteCache[m.p2Active+"_front"]
-		
-		arenaStr := lipgloss.JoinHorizontal(lipgloss.Bottom, 
-			lipgloss.NewStyle().Width(leftWidth/2).Align(lipgloss.Left).Render(p1Sprite),
-			lipgloss.NewStyle().Width(leftWidth/2).Align(lipgloss.Right).Render(p2Sprite),
-		)
-		arenaPane := activeBoxStyle.Width(leftWidth).Height(20).Render(arenaStr)
 
-		var logs strings.Builder
-		for _, l := range m.logs {
-			logs.WriteString(l)
-			logs.WriteString("\n")
+		if p1Sprite == "" {
+			p1Sprite = dimStyle.Render("\n Loading Sprite...")
 		}
-		logPane := activeBoxStyle.Width(leftWidth).Height(contentHeight - 22).Render(logs.String())
-		leftSide := lipgloss.JoinVertical(lipgloss.Left, arenaPane, logPane)
-
-		rightWidth := contentWidth - leftWidth - 2
-		var info strings.Builder
-
-		info.WriteString(sysStyle.Render(" YOUR TEAM\n"))
-		for i, mon := range m.team {
-			displayName := strings.ToUpper(string(mon.Mon[0])) + mon.Mon[1:]
-			if i == 0 {
-				info.WriteString(activeBoxStyle.Render(" ▶ " + displayName) + "\n")
-			} else {
-				info.WriteString("   " + displayName + "\n")
-			}
+		if p2Sprite == "" {
+			p2Sprite = dimStyle.Render("\n Loading Sprite...")
 		}
 
-		info.WriteString("\n")
-		info.WriteString(sysStyle.Render(" CONTROLS\n"))
-		for i, move := range m.team[0].Moves {
-			info.WriteString(dimStyle.Render(fmt.Sprintf(" %d │", i+1)))
-			info.WriteString(" " + move + "\n")
-		}
-		info.WriteString(dimStyle.Render(" q │"))
-		info.WriteString(" Quit\n")
+		arenaStr := lipgloss.JoinHorizontal(lipgloss.Bottom,
+		lipgloss.NewStyle().Width(leftWidth/2).Align(lipgloss.Left).Render(p1Sprite),
+		lipgloss.NewStyle().Width(leftWidth/2).Align(lipgloss.Right).Render(p2Sprite),
+	)
+	arenaPane := activeBoxStyle.Width(leftWidth).Height(topHeight).Render(arenaStr)
 
-		infoPane := boxStyle.Width(rightWidth).Height(contentHeight).Render(info.String())
-		content = lipgloss.JoinHorizontal(lipgloss.Top, leftSide, infoPane)
+	maxLogs := topHeight - 4
+	if len(m.logs) > maxLogs {
+		m.logs = m.logs[len(m.logs)-maxLogs:]
 	}
+	var logs strings.Builder
+	logs.WriteString(sysStyle.Render(" BATTLE LOG\n\n"))
+	for _, l := range m.logs {
+		logs.WriteString(" " + l + "\n")
+	}
+	logPane := boxStyle.Width(rightWidth).Height(topHeight).Render(logs.String())
+
+	var ctrls strings.Builder
+	monName := "YOUR POKEMON"
+	if m.p1Active != "" {
+		monName = strings.ToUpper(m.p1Active)
+	} else if len(m.team) > 0 {
+		monName = strings.ToUpper(m.team[0].Mon)
+	}
+	ctrls.WriteString(sysStyle.Render(fmt.Sprintf(" WHAT WILL %s DO?\n\n", monName)))
+
+	for i, move := range m.team[0].Moves {
+		ctrls.WriteString(dimStyle.Render(fmt.Sprintf(" [%d] ", i+1)))
+		ctrls.WriteString(lipgloss.NewStyle().Width(18).Render(move))
+		if i == 1 {
+			ctrls.WriteString("\n\n")
+		}
+	}
+	ctrls.WriteString(dimStyle.Render("\n\n [q] ") + "Quit\n")
+	controlsPane := activeBoxStyle.Width(leftWidth).Height(bottomHeight).Render(ctrls.String())
+
+	var teamStr strings.Builder
+	teamStr.WriteString(sysStyle.Render(" PARTY\n\n"))
+	for i, mon := range m.team {
+		displayName := strings.ToUpper(string(mon.Mon[0])) + mon.Mon[1:]
+		if i == 0 {
+			teamStr.WriteString(activeBoxStyle.Render(" ▶ " + displayName) + "\n")
+		} else {
+			teamStr.WriteString("   " + displayName + "\n")
+		}
+	}
+	teamPane := boxStyle.Width(rightWidth).Height(bottomHeight).Render(teamStr.String())
+
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top, arenaPane, logPane)
+	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, controlsPane, teamPane)
+	content = lipgloss.JoinVertical(lipgloss.Left, topRow, bottomRow)
+}
 
 	modeStr := " MATCHMAKING "
 	modeBg := blue

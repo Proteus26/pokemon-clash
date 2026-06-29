@@ -2,7 +2,6 @@ package engine
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 )
@@ -42,7 +41,7 @@ func (b *Battle) EmitBattle(event, text string) {
 
 func (b *Battle) Start() {
 	log.Printf("[Engine] Battle %s initialized.\n", b.ID)
-	b.EmitSystem(fmt.Sprintf("Battle initialized, waiting for inputs..."))
+	b.EmitBattle("start","Battle initialized, waiting for inputs...")
 
 	turnTimer := time.NewTicker(30 * time.Second)
 	defer turnTimer.Stop()
