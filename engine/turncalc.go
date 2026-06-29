@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"pokemon-clash/loader"
 )
 
@@ -41,6 +42,14 @@ func (b *Battle) moveOrder(act1, act2 Action) {
 
 func (b *Battle) execAction(attacker, defender *Player, act Action) {
 	if act.Act == "switch" {
+		for _, p := range attacker.Team {
+			if strings.ToLower(p.Mon) == strings.ToLower(act.Value) {
+				if p.HP > 0 {
+					attacker.Active = p
+					break
+				}
+			}
+		}
 		b.EmitBattle("switch", fmt.Sprintf("%s switched to %s!", attacker.ID, act.Value))
 	} else if act.Act == "move" {
 		damage := calcDamage(attacker.Active, defender.Active, act.Value)

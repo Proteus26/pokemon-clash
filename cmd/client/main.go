@@ -122,12 +122,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == stateBattle {
 			switch msg.String() {
 			case "1", "2", "3", "4":
-				id := int(msg.String()[0] - '1')
+				activeId := 0
+				myActive := m.p1Active
+				if m.myRole == "p2" { myActive = m.p2Active }
+				for i, mon := range m.team {
+					if strings.ToLower(mon.Mon) == strings.ToLower(myActive) {
+						activeId = i
+						break
+					}
+				}
 
-				if id >= 0 && id < len(m.team[0].Moves) {
-					selectedMove := m.team[0].Moves[id]
+				id := int(msg.String()[0] - '1')
+				if id >= 0 && id < len(m.team[activeId].Moves) {
+					selectedMove := m.team[activeId].Moves[id]
 					m.logs = append(m.logs, cmdStyle.Render(">> Sent: "+selectedMove))
 					m.conn.WriteJSON(map[string]string{"act": "move", "value": selectedMove})
+				}
+
+			case "5", "6", "7", "8", "9", "0":
+				keyMap := map[string]int{"5": 0, "6": 1, "7": 2, "8": 3, "9": 4, "0": 5}
+				idx := keyMap[msg.String()]
+				if idx >= 0 && idx < len(m.team) {
+					selectedMon := m.team[idx].Mon
+					m.logs = append(m.logs, cmdStyle.Render(">> Sent: Switch to "+selectedMon))
+					m.conn.WriteJSON(map[string]string{"act": "switch", "value": selectedMon})
 				}
 			}
 		}
@@ -273,33 +291,44 @@ func (m model) View() string {
 	}
 	logPane := boxStyle.Width(rightWidth).Height(topHeight).Render(logs.String())
 
-	var ctrls strings.Builder
-	monName := "YOUR POKEMON"
-	if m.p1Active != "" {
-		monName = strings.ToUpper(m.p1Active)
-	} else if len(m.team) > 0 {
-		monName = strings.ToUpper(m.team[0].Mon)
+	activeId := 0
+	myActive := m.p1Active
+	if m.myRole == "p2" { myActive = m.p2Active }
+	if myActive == "" && len(m.team) > 0 { myActive = m.team[0].Mon }
+	
+	for i, mon := range m.team {
+		if strings.ToLower(mon.Mon) == strings.ToLower(myActive) {
+			activeId = i
+			break
+		}
 	}
+
+	var ctrls strings.Builder
+	monName := strings.ToUpper(m.team[activeId].Mon)
 	ctrls.WriteString(sysStyle.Render(fmt.Sprintf(" WHAT WILL %s DO?\n\n", monName)))
 
-	for i, move := range m.team[0].Moves {
+	for i, move := range m.team[activeId].Moves {
 		ctrls.WriteString(dimStyle.Render(fmt.Sprintf(" [%d] ", i+1)))
 		ctrls.WriteString(lipgloss.NewStyle().Width(18).Render(move))
 		if i == 1 {
 			ctrls.WriteString("\n\n")
 		}
 	}
-	ctrls.WriteString(dimStyle.Render("\n\n [q] ") + "Quit\n")
+	ctrls.WriteString(dimStyle.Render("\n\n [q] ") + "Quit    " + dimStyle.Render("[5-0] ") + "Switch Mon\n")
 	controlsPane := activeBoxStyle.Width(leftWidth).Height(bottomHeight).Render(ctrls.String())
 
 	var teamStr strings.Builder
 	teamStr.WriteString(sysStyle.Render(" PARTY\n\n"))
 	for i, mon := range m.team {
 		displayName := strings.ToUpper(string(mon.Mon[0])) + mon.Mon[1:]
-		if i == 0 {
+		
+		hotkey := "0"
+		if i < 5 { hotkey = fmt.Sprintf("%d", i+5) }
+
+		if i == activeId {
 			teamStr.WriteString(activeBoxStyle.Render(" ▶ " + displayName) + "\n")
 		} else {
-			teamStr.WriteString("   " + displayName + "\n")
+			teamStr.WriteString(dimStyle.Render(fmt.Sprintf(" [%s] ", hotkey)) + displayName + "\n")
 		}
 	}
 	teamPane := boxStyle.Width(rightWidth).Height(bottomHeight).Render(teamStr.String())
