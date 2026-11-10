@@ -48,10 +48,10 @@ type ServerMessage struct {
 	Text  string `json:"text"`
 
 	P1Active string `json:"p1_active,omitempty"`
-	P1HP     int    `json:"p1_hp,omitempty"`
-	P1Max    int    `json:"p1_max,omitempty"`
+	P1HP     int    `json:"p1_hp"`
+	P1Max    int    `json:"p1_max"`
 
 	P2Active string `json:"p2_active,omitempty"`
-	P2HP     int    `json:"p2_hp,omitempty"`
-	P2Max    int    `json:"p2_max,omitempty"`
+	P2HP     int    `json:"p2_hp"`
+	P2Max    int    `json:"p2_max"`
 }

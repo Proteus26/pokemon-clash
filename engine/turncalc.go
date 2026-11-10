@@ -3,8 +3,8 @@ package engine
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 	"pokemon-clash/loader"
+	"strings"
 )
 
 func (b *Battle) moveOrder(act1, act2 Action) {
@@ -50,8 +50,12 @@ func (b *Battle) execAction(attacker, defender *Player, act Action) {
 				}
 			}
 		}
-		b.EmitBattle("switch", fmt.Sprintf("%s switched to %s!", attacker.ID, act.Value))
+		b.EmitBattle("switch", fmt.Sprintf("%s switched to %s!", attacker.ID, attacker.Active.Mon))
 	} else if act.Act == "move" {
+		moveName := act.Value
+		if md, ok := loader.GetMove(act.Value); ok {
+			moveName = md.Name
+		}
 		damage := calcDamage(attacker.Active, defender.Active, act.Value)
 
 		defender.Active.HP -= damage
@@ -59,7 +63,7 @@ func (b *Battle) execAction(attacker, defender *Player, act Action) {
 			defender.Active.HP = 0
 		}
 
-		b.EmitBattle("move", fmt.Sprintf("%s used %s!", attacker.Active.Mon, act.Value))
+		b.EmitBattle("move", fmt.Sprintf("%s used %s!", attacker.Active.Mon, moveName))
 		b.EmitBattle("damage", fmt.Sprintf("%s took %d damage!", defender.Active.Mon, damage))
 
 		if defender.Active.HP == 0 {
