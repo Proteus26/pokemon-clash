@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"pokemon-clash/loader"
-	"strings"
 )
 
 func (b *Battle) moveOrder(act1, act2 Action) {
@@ -40,35 +39,40 @@ func (b *Battle) moveOrder(act1, act2 Action) {
 	}
 }
 
+func (b *Battle) switchIn(p *Player, name string) {
+	target := p.Find(name)
+	if target == nil || target.HP == 0 || target == p.Active {
+		return
+	}
+	p.Active = target
+	b.EmitBattle("switch", fmt.Sprintf("%s sent out %s!", b.label(p), target.Mon))
+}
+
 func (b *Battle) execAction(attacker, defender *Player, act Action) {
 	if act.Act == "switch" {
-		for _, p := range attacker.Team {
-			if strings.ToLower(p.Mon) == strings.ToLower(act.Value) {
-				if p.HP > 0 {
-					attacker.Active = p
-					break
-				}
-			}
-		}
-		b.EmitBattle("switch", fmt.Sprintf("%s switched to %s!", attacker.ID, attacker.Active.Mon))
-	} else if act.Act == "move" {
-		moveName := act.Value
-		if md, ok := loader.GetMove(act.Value); ok {
-			moveName = md.Name
-		}
-		damage := calcDamage(attacker.Active, defender.Active, act.Value)
+		b.switchIn(attacker, act.Value)
+		return
+	}
+	if act.Act != "move" || attacker.Active.HP == 0 || defender.Active.HP == 0 {
+		return
+	}
 
-		defender.Active.HP -= damage
-		if defender.Active.HP < 0 {
-			defender.Active.HP = 0
-		}
+	moveName := act.Value
+	if md, ok := loader.GetMove(act.Value); ok {
+		moveName = md.Name
+	}
+	damage := calcDamage(attacker.Active, defender.Active, act.Value)
 
-		b.EmitBattle("move", fmt.Sprintf("%s used %s!", attacker.Active.Mon, moveName))
-		b.EmitBattle("damage", fmt.Sprintf("%s took %d damage!", defender.Active.Mon, damage))
+	defender.Active.HP -= damage
+	if defender.Active.HP < 0 {
+		defender.Active.HP = 0
+	}
 
-		if defender.Active.HP == 0 {
-			b.EmitBattle("faint", fmt.Sprintf("%s fainted!", defender.Active.Mon))
-		}
+	b.EmitBattle("move", fmt.Sprintf("%s used %s!", attacker.Active.Mon, moveName))
+	b.EmitBattle("damage", fmt.Sprintf("%s took %d damage!", defender.Active.Mon, damage))
+
+	if defender.Active.HP == 0 {
+		b.EmitBattle("faint", fmt.Sprintf("%s fainted!", defender.Active.Mon))
 	}
 }
 

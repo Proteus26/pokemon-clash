@@ -23,6 +23,7 @@ type Client struct {
 	hub        *Hub
 	Player     *engine.Player
 	ActionChan chan engine.Action
+	BattleDone chan struct{}
 }
 
 func ServeSock(w http.ResponseWriter, r *http.Request, hub *Hub) {
@@ -80,7 +81,10 @@ func (c *Client) readPump() {
 			if c.Player != nil && c.ActionChan != nil {
 				log.Printf("[Client] Player %s used %s: %s\n", c.Player.ID, action.Act, action.Value)
 				action.PID = c.Player.ID
-				c.ActionChan <- action
+				select {
+				case c.ActionChan <- action:
+				case <-c.BattleDone:
+				}
 			} else {
 				log.Printf("[Client] Received combat action when there is no team.\n")
 			}

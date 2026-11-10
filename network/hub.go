@@ -67,15 +67,19 @@ func (h *Hub) matchmake(client *Client) {
 		battleID := fmt.Sprintf("battle-%s-%s", p1.Player.ID, p2.Player.ID)
 		battle := engine.InitBattle(battleID, p1.Player, p2.Player)
 
-		p1.ActionChan = battle.P1Chan
-		p2.ActionChan = battle.P2Chan
+		p1.ActionChan, p1.BattleDone = battle.P1Chan, battle.Done
+		p2.ActionChan, p2.BattleDone = battle.P2Chan, battle.Done
 
 		go battle.Start()
 
 		go func() {
-			for msg := range battle.Broadcast {
-				p1.Send <- msg
-				p2.Send <- msg
+			for env := range battle.Out {
+				if env.To != "p2" {
+					p1.Send <- env.Data
+				}
+				if env.To != "p1" {
+					p2.Send <- env.Data
+				}
 			}
 		}()
 	}

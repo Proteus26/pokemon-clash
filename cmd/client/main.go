@@ -73,6 +73,10 @@ type ServerMessage struct {
 	P2HP     int    `json:"p2_hp"`
 	P2Max    int    `json:"p2_max"`
 	Role     string `json:"role,omitempty"`
+
+	Turn       int    `json:"turn"`
+	MustSwitch string `json:"must_switch"`
+	Winner     string `json:"winner"`
 }
 
 type LocalMon struct {
@@ -83,22 +87,25 @@ type LocalMon struct {
 type hp struct{ cur, max int }
 
 type model struct {
-	state     sessionState
-	conn      *websocket.Conn
-	logs      []string
-	err       error
-	width     int
-	height    int
-	team      []LocalMon
-	myActive  string
-	oppActive string
-	myHP      hp
-	oppHP     hp
-	teamHP    map[string]hp
-	sprites   *spriteStore
-	myRole    string
-	waiting   bool
-	turn      int
+	state       sessionState
+	conn        *websocket.Conn
+	logs        []string
+	err         error
+	width       int
+	height      int
+	team        []LocalMon
+	myActive    string
+	oppActive   string
+	myHP        hp
+	oppHP       hp
+	teamHP      map[string]hp
+	sprites     *spriteStore
+	myRole      string
+	waiting     bool
+	forceSwitch bool
+	turn        int
+	shownTurn   int
+	winner      string
 }
 
 const maxLogHistory = 100
@@ -166,15 +173,15 @@ func (m *model) send(act, value, logLine string) {
 }
 
 func (m model) handleBattleKey(key string) model {
-	if m.waiting {
+	if m.waiting || m.winner != "" {
 		return m
 	}
 	active := m.team[m.activeIndex()]
 
 	switch key {
 	case "1", "2", "3", "4":
-		if m.fainted(active.Mon) {
-			m.addLog(errStyle.Render(displayName(active.Mon) + " has fainted. Switch with [5-0]."))
+		if m.forceSwitch || m.fainted(active.Mon) {
+			m.addLog(errStyle.Render(displayName(active.Mon) + " has fainted. Choose a replacement with [5-0]."))
 			return m
 		}
 		id := int(key[0] - '1')
@@ -194,6 +201,8 @@ func (m model) handleBattleKey(key string) model {
 				m.addLog(dimStyle.Render(displayName(target) + " is already in battle."))
 			case m.fainted(target):
 				m.addLog(dimStyle.Render(displayName(target) + " has fainted and can't battle."))
+			case m.forceSwitch:
+				m.send("switch", target, "> Go, "+displayName(target)+"!")
 			default:
 				m.send("switch", target, "> Come back! Go, "+displayName(target)+"!")
 			}
@@ -215,13 +224,16 @@ func (m model) handleServerMessage(raw []byte) model {
 		m.myRole = "p1"
 	}
 
+	if sm.Type == "error" {
+		m.addLog(errStyle.Render(sm.Text))
+		m.waiting = false
+		return m
+	}
+
 	if sm.Type == "battle" {
 		m.state = stateBattle
-
-		if m.waiting {
-			m.waiting = false
-			m.turn++
-			m.addLog(dimStyle.Render(fmt.Sprintf("── Turn %d ──", m.turn-1)))
+		if sm.Turn > 0 {
+			m.turn = sm.Turn
 		}
 
 		myMon, oppMon := sm.P1Active, sm.P2Active
@@ -239,11 +251,30 @@ func (m model) handleServerMessage(raw []byte) model {
 			m.oppActive = strings.ToLower(oppMon)
 			m.oppHP = oppHP
 		}
+
+		switch sm.Event {
+		case "request":
+			mine := sm.MustSwitch == m.myRole || sm.MustSwitch == "both"
+			m.forceSwitch = mine
+			m.waiting = sm.MustSwitch != "" && !mine
+			if sm.MustSwitch == "" && m.turn > m.shownTurn {
+				m.shownTurn = m.turn
+				m.addLog(dimStyle.Render(fmt.Sprintf("── Turn %d ──", m.turn)))
+			}
+		case "end":
+			m.winner = sm.Winner
+			m.waiting = false
+			m.forceSwitch = false
+		}
 	}
 
 	if sm.Text != "" {
 		switch {
 		case sm.Event == "faint":
+			m.addLog(errStyle.Render(sm.Text))
+		case sm.Event == "end":
+			m.addLog(activeStyle.Render(sm.Text))
+		case sm.Event == "request":
 			m.addLog(errStyle.Render(sm.Text))
 		case sm.Event == "switch":
 			m.addLog(sysStyle.Render(sm.Text))
@@ -461,14 +492,22 @@ func (m model) movesView(w, h int) string {
 		return dimStyle.Render("No team loaded.")
 	}
 	mon := m.team[m.activeIndex()]
-	fainted := m.fainted(mon.Mon)
+	fainted := m.forceSwitch || m.fainted(mon.Mon) || m.winner != ""
 
 	var title string
 	switch {
+	case m.winner == m.myRole:
+		title = lipgloss.NewStyle().Foreground(green).Bold(true).Render("YOU WON THE BATTLE!")
+	case m.winner == "draw":
+		title = sysStyle.Render("THE BATTLE ENDED IN A DRAW.")
+	case m.winner != "":
+		title = errStyle.Render("YOU LOST THE BATTLE...")
+	case m.waiting && !m.forceSwitch && m.oppHP.max > 0 && m.oppHP.cur == 0:
+		title = dimStyle.Render("Waiting for your opponent to send out a Pokémon...")
 	case m.waiting:
 		title = dimStyle.Render("Waiting for your opponent...")
 	case fainted:
-		title = errStyle.Render(fmt.Sprintf("%s FAINTED! CHOOSE A SWITCH [5-0]", strings.ToUpper(displayName(mon.Mon))))
+		title = errStyle.Render(fmt.Sprintf("%s FAINTED! CHOOSE A REPLACEMENT [5-0]", strings.ToUpper(displayName(mon.Mon))))
 	default:
 		title = sysStyle.Render(fmt.Sprintf("WHAT WILL %s DO?", strings.ToUpper(displayName(mon.Mon))))
 	}
@@ -485,7 +524,7 @@ func (m model) movesView(w, h int) string {
 	}
 	nameW = min(nameW, max(1, w/2-5))
 	for i := 0; i < len(mon.Moves) && i < 4; i += 2 {
-		row := padRight(moveCell(i, mon.Moves[i], nameW, m.waiting || fainted), w/2)
+		row := padRight(moveCell(i, mon.Moves[i], nameW, m.waiting || fainted), w/2-1) + " "
 		if i+1 < len(mon.Moves) {
 			row += moveCell(i+1, mon.Moves[i+1], nameW, m.waiting || fainted)
 		}
@@ -494,7 +533,14 @@ func (m model) movesView(w, h int) string {
 			lines = append(lines, "")
 		}
 	}
-	lines = append(lines, dimStyle.Render("[1-4]")+" Move   "+dimStyle.Render("[5-0]")+" Switch   "+dimStyle.Render("[q]")+" Quit")
+	switch {
+	case m.winner != "":
+		lines = append(lines, dimStyle.Render("[q]")+" Quit")
+	case m.forceSwitch:
+		lines = append(lines, dimStyle.Render("[5-0]")+" Send out   "+dimStyle.Render("[q]")+" Quit")
+	default:
+		lines = append(lines, dimStyle.Render("[1-4]")+" Move   "+dimStyle.Render("[5-0]")+" Switch   "+dimStyle.Render("[q]")+" Quit")
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -588,6 +634,14 @@ func (m model) View() string {
 	if m.state == stateBattle {
 		modeStr = fmt.Sprintf(" BATTLE · TURN %d ", m.turn)
 		modeBg = red
+		switch {
+		case m.winner == m.myRole:
+			modeStr, modeBg = " VICTORY ", green
+		case m.winner == "draw":
+			modeStr, modeBg = " DRAW ", blue
+		case m.winner != "":
+			modeStr, modeBg = " DEFEAT ", red
+		}
 	} else if m.state == stateError {
 		modeStr = " ERROR "
 		modeBg = red

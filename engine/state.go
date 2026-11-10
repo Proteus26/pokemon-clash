@@ -1,5 +1,10 @@
 package engine
 
+import (
+	"pokemon-clash/loader"
+	"strings"
+)
+
 type Pokemon struct {
 	ID    string
 	Mon   string
@@ -21,6 +26,24 @@ type Player struct {
 	Active *Pokemon
 }
 
+func (p *Player) Find(name string) *Pokemon {
+	for _, mon := range p.Team {
+		if strings.EqualFold(mon.Mon, name) || loader.ToID(mon.Mon) == loader.ToID(name) {
+			return mon
+		}
+	}
+	return nil
+}
+
+func (p *Player) Alive() bool {
+	for _, mon := range p.Team {
+		if mon.HP > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 type TeamMember struct {
 	Mon   string   `json:"mon"`
 	Moves []string `json:"moves"`
@@ -33,13 +56,20 @@ type Action struct {
 	Team  []TeamMember `json:"team,omitempty"`
 }
 
+type Envelope struct {
+	To   string
+	Data []byte
+}
+
 type Battle struct {
-	ID        string
-	P1        *Player
-	P2        *Player
-	P1Chan    chan Action
-	P2Chan    chan Action
-	Broadcast chan []byte
+	ID     string
+	P1     *Player
+	P2     *Player
+	P1Chan chan Action
+	P2Chan chan Action
+	Out    chan Envelope
+	Done   chan struct{}
+	Turn   int
 }
 
 type ServerMessage struct {
@@ -54,4 +84,8 @@ type ServerMessage struct {
 	P2Active string `json:"p2_active,omitempty"`
 	P2HP     int    `json:"p2_hp"`
 	P2Max    int    `json:"p2_max"`
+
+	Turn       int    `json:"turn,omitempty"`
+	MustSwitch string `json:"must_switch,omitempty"`
+	Winner     string `json:"winner,omitempty"`
 }
