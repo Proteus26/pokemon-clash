@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"pokemon-clash/engine"
+	"time"
 )
 
 type Hub struct {
@@ -12,6 +13,8 @@ type Hub struct {
 	unregister chan *Client
 	ready      chan *Client
 	waiting    *Client
+
+	TurnTimeout time.Duration
 }
 
 func NewHub() *Hub {
@@ -20,6 +23,8 @@ func NewHub() *Hub {
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
 		ready:      make(chan *Client),
+
+		TurnTimeout: engine.DefaultTurnTimeout,
 	}
 }
 
@@ -66,6 +71,7 @@ func (h *Hub) matchmake(client *Client) {
 
 		battleID := fmt.Sprintf("battle-%s-%s", p1.Player.ID, p2.Player.ID)
 		battle := engine.InitBattle(battleID, p1.Player, p2.Player)
+		battle.TurnTimeout = h.TurnTimeout
 
 		p1.ActionChan, p1.BattleDone = battle.P1Chan, battle.Done
 		p2.ActionChan, p2.BattleDone = battle.P2Chan, battle.Done

@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"pokemon-clash/loader"
 	"time"
 )
 
-const turnTimeout = 30 * time.Second
+const (
+	DefaultTurnTimeout = 30 * time.Second
+	DefaultMaxTimeouts = 3
+)
 
 func InitBattle(id string, p1, p2 *Player) *Battle {
 	return &Battle{
@@ -21,7 +25,18 @@ func InitBattle(id string, p1, p2 *Player) *Battle {
 		Out:    make(chan Envelope, 100),
 		Done:   make(chan struct{}),
 		Turn:   1,
+
+		TurnTimeout: DefaultTurnTimeout,
+		MaxTimeouts: DefaultMaxTimeouts,
+		timeouts:    map[*Player]int{},
 	}
+}
+
+func (b *Battle) other(p *Player) *Player {
+	if p == b.P1 {
+		return b.P2
+	}
+	return b.P1
 }
 
 func (b *Battle) role(p *Player) string {
@@ -92,8 +107,11 @@ func (b *Battle) mustSwitch() string {
 }
 
 func (b *Battle) request() {
+	b.seq++
 	msg := b.snapshot("request", "")
 	msg.MustSwitch = b.mustSwitch()
+	msg.Seq = b.seq
+	msg.TimeLimit = int(b.TurnTimeout.Round(time.Second) / time.Second)
 	for _, p := range []*Player{b.P1, b.P2} {
 		if b.needsSwitch(p) {
 			msg.Text = fmt.Sprintf("%s must send out another Pokémon!", b.label(p))
@@ -134,6 +152,9 @@ func (b *Battle) validate(p *Player, act Action) error {
 
 func (b *Battle) submit(p *Player, act Action, pending map[*Player]*Action) {
 	switch {
+	case act.Seq != b.seq:
+		b.emitError(p, "Too late! That choice was for an earlier turn.")
+		return
 	case b.forcedPhase() && !b.needsSwitch(p):
 		b.emitError(p, "Waiting for your opponent to send out a Pokémon.")
 		return
@@ -149,12 +170,62 @@ func (b *Battle) submit(p *Player, act Action, pending map[*Player]*Action) {
 		return
 	}
 	pending[p] = &act
+	b.timeouts[p] = 0
+}
+
+func (b *Battle) required(p *Player) bool {
+	return !b.forcedPhase() || b.needsSwitch(p)
+}
+
+func (b *Battle) autoAction(p *Player) *Action {
+	if b.forcedPhase() {
+		var bench []*Pokemon
+		for _, mon := range p.Team {
+			if mon.HP > 0 && mon != p.Active {
+				bench = append(bench, mon)
+			}
+		}
+		if len(bench) == 0 {
+			return nil
+		}
+		return &Action{Act: "switch", Value: bench[rand.Intn(len(bench))].Mon, Seq: b.seq}
+	}
+	if len(p.Active.Moves) == 0 {
+		return nil
+	}
+	return &Action{Act: "move", Value: p.Active.Moves[rand.Intn(len(p.Active.Moves))], Seq: b.seq}
+}
+
+func (b *Battle) handleTimeout(pending map[*Player]*Action) bool {
+	for _, p := range []*Player{b.P1, b.P2} {
+		if !b.required(p) || pending[p] != nil {
+			continue
+		}
+		b.timeouts[p]++
+		if b.timeouts[p] >= b.MaxTimeouts {
+			b.finish(b.role(b.other(p)), fmt.Sprintf("%s ran out of time %d turns in a row and forfeits! %s wins the battle!",
+				b.label(p), b.timeouts[p], b.label(b.other(p))))
+			return true
+		}
+		act := b.autoAction(p)
+		if act == nil {
+			continue
+		}
+		pending[p] = act
+		choice := act.Value
+		if md, ok := loader.GetMove(act.Value); ok && act.Act == "move" {
+			choice = md.Name
+		}
+		left := b.MaxTimeouts - b.timeouts[p]
+		b.EmitSystem(fmt.Sprintf("%s ran out of time! %s was chosen for them. (%d more and they forfeit)",
+			b.label(p), choice, left))
+	}
+	return false
 }
 
 func (b *Battle) ready(pending map[*Player]*Action) bool {
 	for _, p := range []*Player{b.P1, b.P2} {
-		required := !b.forcedPhase() || b.needsSwitch(p)
-		if required && pending[p] == nil {
+		if b.required(p) && pending[p] == nil {
 			return false
 		}
 	}
@@ -187,13 +258,15 @@ func (b *Battle) winner() string {
 	return ""
 }
 
-func (b *Battle) finish(winner string) {
-	text := "It's a draw!"
-	switch winner {
-	case "p1":
-		text = "Player 1 wins the battle!"
-	case "p2":
-		text = "Player 2 wins the battle!"
+func (b *Battle) finish(winner, text string) {
+	if text == "" {
+		text = "It's a draw!"
+		switch winner {
+		case "p1":
+			text = "Player 1 wins the battle!"
+		case "p2":
+			text = "Player 2 wins the battle!"
+		}
 	}
 	msg := b.snapshot("end", text)
 	msg.Winner = winner
@@ -209,7 +282,7 @@ func (b *Battle) Start() {
 	b.EmitBattle("start", "The battle has begun!")
 	b.request()
 
-	turnTimer := time.NewTicker(turnTimeout)
+	turnTimer := time.NewTimer(b.TurnTimeout)
 	defer turnTimer.Stop()
 
 	pending := map[*Player]*Action{}
@@ -221,7 +294,10 @@ func (b *Battle) Start() {
 		case act := <-b.P2Chan:
 			b.submit(b.P2, act, pending)
 		case <-turnTimer.C:
-			b.EmitSystem("Timer expired! Waiting on players...")
+			if b.handleTimeout(pending) {
+				return
+			}
+			turnTimer.Reset(b.TurnTimeout)
 		}
 
 		if !b.ready(pending) {
@@ -232,11 +308,11 @@ func (b *Battle) Start() {
 		clear(pending)
 
 		if w := b.winner(); w != "" {
-			b.finish(w)
+			b.finish(w, "")
 			return
 		}
 
 		b.request()
-		turnTimer.Reset(turnTimeout)
+		turnTimer.Reset(b.TurnTimeout)
 	}
 }

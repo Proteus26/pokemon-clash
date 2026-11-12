@@ -3,6 +3,7 @@ package engine
 import (
 	"pokemon-clash/loader"
 	"strings"
+	"time"
 )
 
 type Pokemon struct {
@@ -54,6 +55,7 @@ type Action struct {
 	Act   string       `json:"act"`
 	Value string       `json:"value,omitempty"`
 	Team  []TeamMember `json:"team,omitempty"`
+	Seq   int          `json:"seq"`
 }
 
 type Envelope struct {
@@ -70,6 +72,11 @@ type Battle struct {
 	Out    chan Envelope
 	Done   chan struct{}
 	Turn   int
+
+	TurnTimeout time.Duration
+	MaxTimeouts int
+	seq         int
+	timeouts    map[*Player]int
 }
 
 type ServerMessage struct {
@@ -88,4 +95,6 @@ type ServerMessage struct {
 	Turn       int    `json:"turn,omitempty"`
 	MustSwitch string `json:"must_switch,omitempty"`
 	Winner     string `json:"winner,omitempty"`
+	Seq        int    `json:"seq,omitempty"`
+	TimeLimit  int    `json:"time_limit,omitempty"`
 }

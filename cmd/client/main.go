@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"pokemon-clash/loader"
 
@@ -37,6 +38,7 @@ var (
 	dimStyle    = lipgloss.NewStyle().Foreground(surface2)
 	activeStyle = lipgloss.NewStyle().Foreground(mauve).Bold(true)
 	nameStyle   = lipgloss.NewStyle().Foreground(text).Bold(true)
+	warnStyle   = lipgloss.NewStyle().Foreground(yellow).Bold(true)
 )
 
 var typeColors = map[string]lipgloss.Color{
@@ -48,6 +50,8 @@ var typeColors = map[string]lipgloss.Color{
 }
 
 const minWidth, minHeight = 80, 24
+
+type tickMsg time.Time
 
 type wsMsg []byte
 type wsErr error
@@ -77,6 +81,8 @@ type ServerMessage struct {
 	Turn       int    `json:"turn"`
 	MustSwitch string `json:"must_switch"`
 	Winner     string `json:"winner"`
+	Seq        int    `json:"seq"`
+	TimeLimit  int    `json:"time_limit"`
 }
 
 type LocalMon struct {
@@ -106,6 +112,8 @@ type model struct {
 	turn        int
 	shownTurn   int
 	winner      string
+	seq         int
+	deadline    time.Time
 }
 
 const maxLogHistory = 100
@@ -138,7 +146,11 @@ func (m model) fainted(mon string) bool {
 }
 
 func (m model) Init() tea.Cmd {
-	return connectToServer
+	return tea.Batch(connectToServer, tick())
+}
+
+func tick() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func connectToServer() tea.Msg {
@@ -168,7 +180,7 @@ func (m *model) addLog(line string) {
 
 func (m *model) send(act, value, logLine string) {
 	m.addLog(cmdStyle.Render(logLine))
-	m.conn.WriteJSON(map[string]string{"act": act, "value": value})
+	m.conn.WriteJSON(map[string]interface{}{"act": act, "value": value, "seq": m.seq})
 	m.waiting = true
 }
 
@@ -254,6 +266,10 @@ func (m model) handleServerMessage(raw []byte) model {
 
 		switch sm.Event {
 		case "request":
+			m.seq = sm.Seq
+			if sm.TimeLimit > 0 {
+				m.deadline = time.Now().Add(time.Duration(sm.TimeLimit) * time.Second)
+			}
 			mine := sm.MustSwitch == m.myRole || sm.MustSwitch == "both"
 			m.forceSwitch = mine
 			m.waiting = sm.MustSwitch != "" && !mine
@@ -263,6 +279,7 @@ func (m model) handleServerMessage(raw []byte) model {
 			}
 		case "end":
 			m.winner = sm.Winner
+			m.deadline = time.Time{}
 			m.waiting = false
 			m.forceSwitch = false
 		}
@@ -274,6 +291,8 @@ func (m model) handleServerMessage(raw []byte) model {
 			m.addLog(errStyle.Render(sm.Text))
 		case sm.Event == "end":
 			m.addLog(activeStyle.Render(sm.Text))
+		case strings.Contains(sm.Text, "ran out of time"):
+			m.addLog(warnStyle.Render(sm.Text))
 		case sm.Event == "request":
 			m.addLog(errStyle.Render(sm.Text))
 		case sm.Event == "switch":
@@ -293,6 +312,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+
+	case tickMsg:
+		return m, tick()
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -487,6 +509,24 @@ func moveCell(i int, move string, nameW int, faded bool) string {
 	return cell
 }
 
+func (m model) timerView() string {
+	if m.deadline.IsZero() || m.winner != "" {
+		return ""
+	}
+	left := max(0, int(time.Until(m.deadline).Seconds()+0.999))
+	label := fmt.Sprintf("%ds left", left)
+	if m.waiting {
+		label = fmt.Sprintf("Opponent: %ds", left)
+	}
+	switch {
+	case left <= 5:
+		return errStyle.Render(label)
+	case left <= 10:
+		return warnStyle.Render(label)
+	}
+	return dimStyle.Render(label)
+}
+
 func (m model) movesView(w, h int) string {
 	if len(m.team) == 0 {
 		return dimStyle.Render("No team loaded.")
@@ -510,6 +550,10 @@ func (m model) movesView(w, h int) string {
 		title = errStyle.Render(fmt.Sprintf("%s FAINTED! CHOOSE A REPLACEMENT [5-0]", strings.ToUpper(displayName(mon.Mon))))
 	default:
 		title = sysStyle.Render(fmt.Sprintf("WHAT WILL %s DO?", strings.ToUpper(displayName(mon.Mon))))
+	}
+
+	if timer := m.timerView(); timer != "" {
+		title = padRight(title, w-lipgloss.Width(timer)) + timer
 	}
 
 	spaced := h >= 7
