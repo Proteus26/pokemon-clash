@@ -1,13 +1,18 @@
 package network
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"pokemon-clash/engine"
+	"sync"
+	"time"
+
 	"github.com/gorilla/websocket"
 )
+
+const writeWait = 10 * time.Second
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -18,12 +23,49 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Conn       *websocket.Conn
-	Send       chan []byte
-	hub        *Hub
-	Player     *engine.Player
-	ActionChan chan engine.Action
-	BattleDone chan struct{}
+	Conn   *websocket.Conn
+	Send   chan []byte
+	hub    *Hub
+	Player *engine.Player
+
+	closed    chan struct{}
+	closeOnce sync.Once
+
+	mu      sync.Mutex
+	battle  *engine.Battle
+	actions chan engine.Action
+}
+
+func (c *Client) deliver(msg []byte) {
+	select {
+	case c.Send <- msg:
+	case <-c.closed:
+	}
+}
+
+func (c *Client) close() {
+	c.closeOnce.Do(func() { close(c.closed) })
+}
+
+func (c *Client) isClosed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *Client) joinBattle(b *engine.Battle, actions chan engine.Action) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.battle, c.actions = b, actions
+}
+
+func (c *Client) currentBattle() (*engine.Battle, chan engine.Action) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.battle, c.actions
 }
 
 func ServeSock(w http.ResponseWriter, r *http.Request, hub *Hub) {
@@ -34,9 +76,10 @@ func ServeSock(w http.ResponseWriter, r *http.Request, hub *Hub) {
 	}
 
 	client := &Client{
-		Conn: conn,
-		Send: make(chan []byte, 256),
-		hub:  hub,
+		Conn:   conn,
+		Send:   make(chan []byte, 256),
+		hub:    hub,
+		closed: make(chan struct{}),
 	}
 	client.hub.register <- client
 
@@ -46,6 +89,10 @@ func ServeSock(w http.ResponseWriter, r *http.Request, hub *Hub) {
 
 func (c *Client) readPump() {
 	defer func() {
+		c.close()
+		if battle, _ := c.currentBattle(); battle != nil {
+			battle.Leave(c.Player)
+		}
 		c.hub.unregister <- c
 		c.Conn.Close()
 	}()
@@ -71,19 +118,20 @@ func (c *Client) readPump() {
 
 			player, err := engine.BuildTeam(playerID, action.Team)
 			if err != nil {
-				c.Send <- []byte(fmt.Sprintf(`{"type": "system", "text": "Failed to build team: %v"}`, err))
+				c.deliver([]byte(fmt.Sprintf(`{"type": "system", "text": "Failed to build team: %v"}`, err)))
 				continue
 			}
 
 			c.Player = player
 			c.hub.ready <- c
 		} else {
-			if c.Player != nil && c.ActionChan != nil {
+			battle, actions := c.currentBattle()
+			if c.Player != nil && battle != nil {
 				log.Printf("[Client] Player %s used %s: %s\n", c.Player.ID, action.Act, action.Value)
 				action.PID = c.Player.ID
 				select {
-				case c.ActionChan <- action:
-				case <-c.BattleDone:
+				case actions <- action:
+				case <-battle.Done:
 				}
 			} else {
 				log.Printf("[Client] Received combat action when there is no team.\n")
@@ -94,19 +142,21 @@ func (c *Client) readPump() {
 
 func (c *Client) writePump() {
 	defer func() {
+		c.close()
 		c.Conn.Close()
 	}()
 
 	for {
-		msg, ok := <-c.Send
-		if !ok {
+		select {
+		case msg := <-c.Send:
+			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				log.Printf("[Client] error writing message: %v\n", err)
+				return
+			}
+		case <-c.closed:
+			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
-			return
-		}
-
-		err := c.Conn.WriteMessage(websocket.TextMessage, msg)
-		if err != nil {
-			log.Printf("[Client] error writing message: %v\n", err)
 			return
 		}
 	}

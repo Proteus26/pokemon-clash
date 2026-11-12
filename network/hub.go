@@ -42,7 +42,7 @@ func (h *Hub) Run() {
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				close(client.Send)
+				client.close()
 
 				if h.waiting == client {
 					h.waiting = nil
@@ -55,17 +55,20 @@ func (h *Hub) Run() {
 }
 
 func (h *Hub) matchmake(client *Client) {
+	if h.waiting != nil && h.waiting.isClosed() {
+		h.waiting = nil
+	}
 	if h.waiting == nil {
 		h.waiting = client
-		client.Send <- []byte(`{"type": "system", "text": "Waiting for an opponent..."}`)
+		client.deliver([]byte(`{"type": "system", "text": "Waiting for an opponent..."}`))
 		log.Println("[Hub] Player added to waitlist.")
 	} else {
 		p1 := h.waiting
 		p2 := client
 		h.waiting = nil
 
-		p1.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p1"}`)
-		p2.Send <- []byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p2"}`)
+		p1.deliver([]byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p1"}`))
+		p2.deliver([]byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p2"}`))
 
 		log.Println("[Hub] Match found! Spinning up battle instance...")
 
@@ -73,18 +76,24 @@ func (h *Hub) matchmake(client *Client) {
 		battle := engine.InitBattle(battleID, p1.Player, p2.Player)
 		battle.TurnTimeout = h.TurnTimeout
 
-		p1.ActionChan, p1.BattleDone = battle.P1Chan, battle.Done
-		p2.ActionChan, p2.BattleDone = battle.P2Chan, battle.Done
+		p1.joinBattle(battle, battle.P1Chan)
+		p2.joinBattle(battle, battle.P2Chan)
 
 		go battle.Start()
+
+		for _, c := range []*Client{p1, p2} {
+			if c.isClosed() {
+				go battle.Leave(c.Player)
+			}
+		}
 
 		go func() {
 			for env := range battle.Out {
 				if env.To != "p2" {
-					p1.Send <- env.Data
+					p1.deliver(env.Data)
 				}
 				if env.To != "p1" {
-					p2.Send <- env.Data
+					p2.deliver(env.Data)
 				}
 			}
 		}()

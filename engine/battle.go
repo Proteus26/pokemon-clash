@@ -25,6 +25,7 @@ func InitBattle(id string, p1, p2 *Player) *Battle {
 		Out:    make(chan Envelope, 100),
 		Done:   make(chan struct{}),
 		Turn:   1,
+		leave:  make(chan *Player),
 
 		TurnTimeout: DefaultTurnTimeout,
 		MaxTimeouts: DefaultMaxTimeouts,
@@ -274,6 +275,13 @@ func (b *Battle) finish(winner, text string) {
 	log.Printf("[Engine] Battle %s over: %s\n", b.ID, text)
 }
 
+func (b *Battle) Leave(p *Player) {
+	select {
+	case b.leave <- p:
+	case <-b.Done:
+	}
+}
+
 func (b *Battle) Start() {
 	defer close(b.Done)
 	defer close(b.Out)
@@ -293,6 +301,9 @@ func (b *Battle) Start() {
 			b.submit(b.P1, act, pending)
 		case act := <-b.P2Chan:
 			b.submit(b.P2, act, pending)
+		case p := <-b.leave:
+			b.finish(b.role(b.other(p)), fmt.Sprintf("%s disconnected. %s wins the battle!", b.label(p), b.label(b.other(p))))
+			return
 		case <-turnTimer.C:
 			if b.handleTimeout(pending) {
 				return

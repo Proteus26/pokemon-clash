@@ -72,6 +72,7 @@ type Battle struct {
 	Out    chan Envelope
 	Done   chan struct{}
 	Turn   int
+	leave  chan *Player
 
 	TurnTimeout time.Duration
 	MaxTimeouts int

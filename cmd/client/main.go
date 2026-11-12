@@ -108,6 +108,7 @@ type model struct {
 	sprites     *spriteStore
 	myRole      string
 	waiting     bool
+	offline     bool
 	forceSwitch bool
 	turn        int
 	shownTurn   int
@@ -180,12 +181,27 @@ func (m *model) addLog(line string) {
 
 func (m *model) send(act, value, logLine string) {
 	m.addLog(cmdStyle.Render(logLine))
-	m.conn.WriteJSON(map[string]interface{}{"act": act, "value": value, "seq": m.seq})
+	if err := m.conn.WriteJSON(map[string]interface{}{"act": act, "value": value, "seq": m.seq}); err != nil {
+		m.goOffline()
+		return
+	}
 	m.waiting = true
 }
 
+func (m *model) goOffline() {
+	if m.offline {
+		return
+	}
+	m.offline = true
+	m.waiting = false
+	m.deadline = time.Time{}
+	if m.winner == "" {
+		m.addLog(errStyle.Render("Lost connection to the server."))
+	}
+}
+
 func (m model) handleBattleKey(key string) model {
-	if m.waiting || m.winner != "" {
+	if m.waiting || m.winner != "" || m.offline {
 		return m
 	}
 	active := m.team[m.activeIndex()]
@@ -340,6 +356,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, listener(m.conn)
 
 	case wsErr:
+		if m.state == stateBattle {
+			m.goOffline()
+			m.conn.Close()
+			return m, nil
+		}
 		m.state = stateError
 		m.err = msg
 		if m.conn != nil {
@@ -510,7 +531,7 @@ func moveCell(i int, move string, nameW int, faded bool) string {
 }
 
 func (m model) timerView() string {
-	if m.deadline.IsZero() || m.winner != "" {
+	if m.deadline.IsZero() || m.winner != "" || m.offline {
 		return ""
 	}
 	left := max(0, int(time.Until(m.deadline).Seconds()+0.999))
@@ -532,7 +553,7 @@ func (m model) movesView(w, h int) string {
 		return dimStyle.Render("No team loaded.")
 	}
 	mon := m.team[m.activeIndex()]
-	fainted := m.forceSwitch || m.fainted(mon.Mon) || m.winner != ""
+	fainted := m.forceSwitch || m.fainted(mon.Mon) || m.winner != "" || m.offline
 
 	var title string
 	switch {
@@ -542,6 +563,8 @@ func (m model) movesView(w, h int) string {
 		title = sysStyle.Render("THE BATTLE ENDED IN A DRAW.")
 	case m.winner != "":
 		title = errStyle.Render("YOU LOST THE BATTLE...")
+	case m.offline:
+		title = errStyle.Render("DISCONNECTED FROM THE SERVER")
 	case m.waiting && !m.forceSwitch && m.oppHP.max > 0 && m.oppHP.cur == 0:
 		title = dimStyle.Render("Waiting for your opponent to send out a Pokémon...")
 	case m.waiting:
@@ -578,7 +601,7 @@ func (m model) movesView(w, h int) string {
 		}
 	}
 	switch {
-	case m.winner != "":
+	case m.winner != "" || m.offline:
 		lines = append(lines, dimStyle.Render("[q]")+" Quit")
 	case m.forceSwitch:
 		lines = append(lines, dimStyle.Render("[5-0]")+" Send out   "+dimStyle.Render("[q]")+" Quit")
@@ -685,6 +708,8 @@ func (m model) View() string {
 			modeStr, modeBg = " DRAW ", blue
 		case m.winner != "":
 			modeStr, modeBg = " DEFEAT ", red
+		case m.offline:
+			modeStr, modeBg = " OFFLINE ", red
 		}
 	} else if m.state == stateError {
 		modeStr = " ERROR "
