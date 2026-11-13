@@ -36,6 +36,15 @@ type Client struct {
 	actions chan engine.Action
 }
 
+func encode(msg engine.ServerMessage) []byte {
+	bytes, _ := json.Marshal(msg)
+	return bytes
+}
+
+func notice(kind, text string) []byte {
+	return encode(engine.ServerMessage{Type: kind, Text: text})
+}
+
 func (c *Client) deliver(msg []byte) {
 	select {
 	case c.Send <- msg:
@@ -114,11 +123,15 @@ func (c *Client) readPump() {
 		}
 
 		if action.Act == "join" {
+			if c.Player != nil {
+				c.deliver(notice("error", "You've already joined. Finish or leave this match first."))
+				continue
+			}
 			playerID := fmt.Sprintf("player-%s", c.Conn.RemoteAddr().String())
 
 			player, err := engine.BuildTeam(playerID, action.Team)
 			if err != nil {
-				c.deliver([]byte(fmt.Sprintf(`{"type": "system", "text": "Failed to build team: %v"}`, err)))
+				c.deliver(notice("error", fmt.Sprintf("Failed to build team: %v", err)))
 				continue
 			}
 

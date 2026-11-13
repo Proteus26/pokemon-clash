@@ -1,107 +1,132 @@
 //go:build ignore
+
 package main
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-var endpoints = map[string]string{
-	"data/pokedex.json": "https://play.pokemonshowdown.com/data/pokedex.json",
-	"data/moves.json":   "https://play.pokemonshowdown.com/data/moves.json",
+const (
+	showdown  = "https://play.pokemonshowdown.com"
+	spriteDir = "data/sprites"
+)
+
+var dataFiles = map[string]string{
+	"data/pokedex.json": showdown + "/data/pokedex.json",
+	"data/moves.json":   showdown + "/data/moves.json",
 }
+
+var spriteSets = map[string]string{
+	"front": showdown + "/sprites/gen5",
+	"back":  showdown + "/sprites/gen5-back",
+}
+
+var client = &http.Client{Timeout: 30 * time.Second}
 
 type TeamMember struct {
 	Mon string `json:"mon"`
 }
 
-func downloadFile(filepath string, url string) {
-	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != 200 {
-		log.Printf("[Fetcher] Failed to fetch %s\n", url)
-		return
+func download(path, url string) error {
+	resp, err := client.Get(url)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
 
-	out, _ := os.Create(filepath)
-	defer out.Close()
-	io.Copy(out, resp.Body)
-	log.Printf("[Fetcher] Saved %s\n", filepath)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %s", resp.Status)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".fetch-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
-func main() {
-	os.MkdirAll("data", os.ModePerm)
-	for path, url := range endpoints {
-		log.Printf("[Fetcher] Fetching %s\n", url)
-
-		resp, err := http.Get(url)
-		if err != nil {
-			log.Printf("[Fetcher] Failed to fetch %s: %v\n", url, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		out, err := os.Create(path)
-		if err != nil {
-			log.Printf("[Fetcher] Failed to make path %s: %v\n", path, err)
-			continue
-		}
-
-		_, err = io.Copy(out, resp.Body)
-		out.Close()
-
-		if err != nil {
-			log.Printf("[Fetcher] Failed to write file %s: %v\n", path, err)
-		} else {
-			log.Printf("[Fetcher] Successfully saved %s\n", path)
-		}
+func teamMons() (map[string]bool, error) {
+	files, err := filepath.Glob("data/team*.json")
+	if err != nil {
+		return nil, err
 	}
 
-	os.MkdirAll("data/sprites/front", os.ModePerm)
-	os.MkdirAll("data/sprites/back", os.ModePerm)
-
-	teamFiles, err := filepath.Glob("data/team*.json")
-	if err != nil || len(teamFiles) == 0{
-		log.Println("[Fetcher] No team files found. Skipping sprites")
-		return
-	}
-
-	uniqueMons := make(map[string]bool)
-
-	for _, file := range teamFiles {
+	mons := map[string]bool{}
+	for _, file := range files {
 		bytes, err := os.ReadFile(file)
 		if err != nil {
-			log.Printf("[Fetcher] Could not read %s\n", file)
+			log.Printf("[Fetcher] Could not read %s: %v\n", file, err)
 			continue
 		}
 
 		var team []TeamMember
 		if err := json.Unmarshal(bytes, &team); err != nil {
-			log.Printf("[Fetcher] Could not parse %s\n", file)
+			log.Printf("[Fetcher] Could not parse %s: %v\n", file, err)
 			continue
 		}
 
 		for _, member := range team {
 			if member.Mon != "" {
-				uniqueMons[member.Mon] = true
+				mons[member.Mon] = true
+			}
+		}
+	}
+	return mons, nil
+}
+
+func main() {
+	failed := 0
+	fetch := func(path, url string) {
+		if err := download(path, url); err != nil {
+			log.Printf("[Fetcher] Failed to fetch %s: %v\n", url, err)
+			failed++
+			return
+		}
+		log.Printf("[Fetcher] Saved %s\n", path)
+	}
+
+	for path, url := range dataFiles {
+		fetch(path, url)
+	}
+
+	mons, err := teamMons()
+	switch {
+	case err != nil:
+		log.Printf("[Fetcher] Could not search for team files: %v\n", err)
+		failed++
+	case len(mons) == 0:
+		log.Println("[Fetcher] No team files found. Skipping sprites.")
+	default:
+		log.Printf("[Fetcher] Found %d unique Pokemon across team files. Downloading sprites...\n", len(mons))
+		for mon := range mons {
+			for side, base := range spriteSets {
+				fetch(filepath.Join(spriteDir, side, mon+".png"), fmt.Sprintf("%s/%s.png", base, mon))
 			}
 		}
 	}
 
-	log.Printf("[Fetcher] Found %d unique Pokemon across team files. Downloading sprites...\n", len(uniqueMons))
-
-	for mon := range uniqueMons {
-		frontUrl := fmt.Sprintf("https://play.pokemonshowdown.com/sprites/gen5/%s.png", mon)
-		backUrl := fmt.Sprintf("https://play.pokemonshowdown.com/sprites/gen5-back/%s.png", mon)
-
-		downloadFile(fmt.Sprintf("data/sprites/front/%s.png", mon), frontUrl)
-		downloadFile(fmt.Sprintf("data/sprites/back/%s.png", mon), backUrl)
+	if failed > 0 {
+		log.Fatalf("[Fetcher] Finished with %d failed download(s).\n", failed)
 	}
-
 	log.Println("[Fetcher] All data and sprites acquired!")
 }

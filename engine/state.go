@@ -84,6 +84,7 @@ type ServerMessage struct {
 	Type  string `json:"type"`
 	Event string `json:"event,omitempty"`
 	Text  string `json:"text"`
+	Role  string `json:"role,omitempty"`
 
 	P1Active string `json:"p1_active,omitempty"`
 	P1HP     int    `json:"p1_hp"`

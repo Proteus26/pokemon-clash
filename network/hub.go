@@ -58,17 +58,20 @@ func (h *Hub) matchmake(client *Client) {
 	if h.waiting != nil && h.waiting.isClosed() {
 		h.waiting = nil
 	}
+	if h.waiting == client {
+		return
+	}
 	if h.waiting == nil {
 		h.waiting = client
-		client.deliver([]byte(`{"type": "system", "text": "Waiting for an opponent..."}`))
+		client.deliver(notice("system", "Waiting for an opponent..."))
 		log.Println("[Hub] Player added to waitlist.")
 	} else {
 		p1 := h.waiting
 		p2 := client
 		h.waiting = nil
 
-		p1.deliver([]byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p1"}`))
-		p2.deliver([]byte(`{"type": "system", "text": "Opponent found! Battle starting.", "role":"p2"}`))
+		p1.deliver(encode(engine.ServerMessage{Type: "system", Text: "Opponent found! Battle starting.", Role: "p1"}))
+		p2.deliver(encode(engine.ServerMessage{Type: "system", Text: "Opponent found! Battle starting.", Role: "p2"}))
 
 		log.Println("[Hub] Match found! Spinning up battle instance...")
 
